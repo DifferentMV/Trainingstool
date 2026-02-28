@@ -1,0 +1,1697 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kinky Glam Trainer</title>
+<meta name="theme-color" content="#0b0014" />
+<style>
+:root{
+  --bg:#0b0014;
+  --panel:#12001f;
+  --panel2:#170026;
+  --line:rgba(255,255,255,.10);
+  --text:#ffeefe;
+  --muted:rgba(255,255,255,.65);
+  --pink:#ff2fb7;
+  --hot:#ff4fd4;
+  --vio:#b300ff;
+  --cyan:#00f0ff;
+  --bad:#ff6ea8;
+  --ok:#7dffbd;
+  --r:22px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  background:
+    radial-gradient(900px 600px at 18% 10%, rgba(255,47,183,.22), transparent 60%),
+    radial-gradient(900px 600px at 82% 90%, rgba(179,0,255,.18), transparent 60%),
+    radial-gradient(700px 500px at 70% 20%, rgba(0,240,255,.08), transparent 60%),
+    var(--bg);
+}
+.wrap{max-width:980px;margin:0 auto;padding:26px 16px 42px}
+header{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px
+}
+h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.08em}
+.sub{margin-top:6px;color:var(--muted);font-size:12px}
+.topbar{
+  display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end
+}
+.tab{
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(255,47,183,.22), rgba(179,0,255,.10));
+  color:var(--text);
+  padding:10px 12px;border-radius:16px;cursor:pointer;font-weight:700
+}
+.tab.secondary{
+  background:rgba(255,255,255,.03);
+}
+.tab.active{
+  box-shadow:0 0 0 3px rgba(255,47,183,.18), 0 0 22px rgba(255,47,183,.22);
+  border-color:rgba(255,47,183,.55);
+}
+.card{
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  border-radius:var(--r);
+  padding:16px;
+  box-shadow:0 12px 48px rgba(0,0,0,.35);
+}
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.sep{height:1px;background:var(--line);margin:12px 0}
+.small{color:var(--muted);font-size:12px;line-height:1.45}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+input[type=text], input[type=number], input[type=time], select{
+  width:100%;
+  background:rgba(0,0,0,.22);
+  border:1px solid var(--line);
+  color:var(--text);
+  padding:11px 12px;
+  border-radius:16px;
+  outline:none;
+}
+input[type=checkbox]{transform:scale(1.05)}
+.btn{
+  border:1px solid rgba(255,47,183,.55);
+  background:linear-gradient(180deg, rgba(255,47,183,.28), rgba(179,0,255,.12));
+  color:var(--text);
+  padding:11px 12px;
+  border-radius:16px;
+  cursor:pointer;
+  font-weight:800;
+  letter-spacing:.02em;
+}
+.btn:hover{box-shadow:0 0 24px rgba(255,47,183,.18)}
+.btn.secondary{
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.03);
+}
+.btn.danger{
+  border:1px solid rgba(255,110,168,.55);
+  background:rgba(255,110,168,.10);
+}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{
+  padding:9px 10px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(255,255,255,.03);cursor:pointer;font-weight:750;font-size:12px
+}
+.pill.active{
+  border-color:rgba(0,240,255,.55);
+  box-shadow:0 0 0 3px rgba(0,240,255,.12);
+}
+.pill.off{opacity:.55}
+.kpi{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px
+}
+.kpi .box{
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.16);
+  border-radius:18px;padding:12px
+}
+.kpi .n{font-size:18px;font-weight:900}
+.kpi .t{font-size:12px;color:var(--muted);margin-top:4px}
+.list{display:flex;flex-direction:column;gap:10px}
+.entry{
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.18);
+  border-radius:18px;padding:12px
+}
+.entry .ts{font-size:12px;color:var(--muted);margin-bottom:6px}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:11px;color:var(--muted);margin-right:6px}
+.badge.pink{border-color:rgba(255,47,183,.55);color:#ffd0f1}
+.badge.cyan{border-color:rgba(0,240,255,.55);color:#c7fcff}
+.badge.ok{border-color:rgba(125,255,189,.45);color:#c9ffe4}
+.badge.bad{border-color:rgba(255,110,168,.45);color:#ffd0e2}
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:18px;z-index:50;
+  background:rgba(16,0,30,.92);
+  border:1px solid var(--line);
+  padding:10px 12px;border-radius:16px;
+  display:none;font-size:13px;
+  box-shadow:0 16px 60px rgba(0,0,0,.5);
+}
+.error{
+  display:none;margin-top:10px;
+  border:1px solid rgba(255,110,168,.55);
+  background:rgba(255,110,168,.10);
+  padding:10px 12px;border-radius:16px;color:#ffe3ef
+}
+hr{border:0;height:1px;background:var(--line);margin:14px 0}
+.glitter{
+  position:fixed;inset:0;pointer-events:none;opacity:.15;
+  background-image:
+    radial-gradient(circle at 10% 30%, rgba(255,255,255,.7) 0 1px, transparent 2px),
+    radial-gradient(circle at 40% 70%, rgba(255,255,255,.6) 0 1px, transparent 2px),
+    radial-gradient(circle at 80% 20%, rgba(255,255,255,.6) 0 1px, transparent 2px),
+    radial-gradient(circle at 75% 85%, rgba(255,255,255,.5) 0 1px, transparent 2px);
+  background-size: 220px 220px, 260px 260px, 240px 240px, 280px 280px;
+  animation: drift 18s linear infinite;
+}
+@keyframes drift{from{transform:translateY(0)}to{transform:translateY(-80px)}}
+.scale{display:flex;gap:8px;flex-wrap:wrap}
+.scale button{
+  width:44px;height:40px;border-radius:14px;border:1px solid var(--line);
+  background:rgba(255,255,255,.03);color:var(--text);cursor:pointer;font-weight:900
+}
+.scale button.active{
+  border-color:rgba(255,47,183,.55);
+  box-shadow:0 0 0 3px rgba(255,47,183,.15);
+}
+</style>
+</head>
+<body>
+<div class="glitter"></div>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Kinky Glam Trainer</h1>
+      <div class="sub">Diva-Optik · nüchterne Sprache · lokal im Browser · ntfy Push</div>
+    </div>
+    <div class="topbar">
+      <button class="tab active" id="tabTrain">Trainingsraum</button>
+      <button class="tab secondary" id="tabDash">Dashboard</button>
+      <button class="tab secondary" id="btnReload">CSV neu laden</button>
+    </div>
+  </header>
+
+  <div id="err" class="error"></div>
+
+  <!-- Trainingsraum -->
+  <div id="viewTrain" class="card">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div>
+        <div class="small">Aktive Aufgabe</div>
+        <div id="activeTitle" style="font-size:18px;font-weight:900;margin-top:6px">Keine offene Aufgabe.</div>
+        <div id="activeMeta" class="small" style="margin-top:6px"></div>
+      </div>
+      <div class="row">
+        <button class="btn secondary" id="btnGenerateNow">Jetzt Aufgabe ziehen</button>
+        <button class="btn secondary" id="btnPushNow">Push senden</button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div id="feedbackBlock" style="display:none;">
+      <div class="row" style="gap:18px;align-items:flex-start">
+        <div style="flex:1;min-width:240px">
+          <div class="small">Gern gemacht (1–5)</div>
+          <div class="scale" id="scaleGern"></div>
+        </div>
+        <div style="flex:1;min-width:240px">
+          <div class="small">Leicht gefallen (1–5)</div>
+          <div class="scale" id="scaleLeicht"></div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btnDone">Erledigt speichern</button>
+        <button class="btn secondary" id="btnAbort">Abbrechen</button>
+      </div>
+
+      <div class="small" style="margin-top:10px">Auch beim Abbrechen werden „gern“/„leicht“ gespeichert (für Ranking & Lernlogik).</div>
+    </div>
+
+    <hr>
+
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div>
+        <div class="small">Offene Queue (heute)</div>
+        <div class="small">Blitzaufgaben werden bei Ignorieren später erneut eingestreut und um 00:00 als „nicht erledigt“ markiert.</div>
+      </div>
+      <div class="row">
+        <button class="btn secondary" id="btnRefreshQueue">Queue aktualisieren</button>
+      </div>
+    </div>
+
+    <div id="queueList" class="list" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="viewDash" style="display:none;margin-top:14px">
+    <div class="grid">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <div class="small">Setup</div>
+            <div style="font-weight:900;margin-top:6px">Topics</div>
+          </div>
+          <div class="small">Getrennt: Training / Reporting</div>
+        </div>
+
+        <div class="sep"></div>
+
+        <div class="row">
+          <div style="flex:1;min-width:240px">
+            <label>ntfy Topic (Training)</label>
+            <input type="text" id="topicTrain" placeholder="z.B. marlo-train-xyz">
+          </div>
+          <div style="flex:1;min-width:240px">
+            <label>ntfy Topic (Reporting optional)</label>
+            <input type="text" id="topicReport" placeholder="z.B. marlo-report-xyz">
+          </div>
+        </div>
+        <div class="row">
+          <div style="flex:1;min-width:240px">
+            <label>ntfy Access Token (optional)</label>
+            <input type="text" id="ntfyToken" placeholder="leer lassen, wenn nicht genutzt">
+          </div>
+          <div style="flex:1;min-width:240px">
+            <label>Reporting aktiv</label>
+            <div class="row" style="margin-top:10px">
+              <label class="small" style="margin:0"><input type="checkbox" id="reportOnDone"> Bei erledigt/abbruch Push an Reporting-Topic</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <button class="btn secondary" id="btnSaveSettings">Speichern</button>
+          <button class="btn secondary" id="btnTestPush">Push testen</button>
+        </div>
+
+        <hr>
+
+        <div class="row" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:900">Aufgaben-Planer</div>
+            <div class="small">Rubriken sind dynamisch aus tasks.csv. Pro Rubrik kannst du mehrere Aufgaben aktivieren oder „random aus Rubrik“.</div>
+          </div>
+          <div class="row">
+            <button class="btn secondary" id="btnAddPlan">Plan hinzufügen</button>
+          </div>
+        </div>
+
+        <div id="plans" class="list" style="margin-top:12px"></div>
+
+        <hr>
+
+        <div class="row" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:900">Ziele</div>
+            <div class="small">Ziele kommen aus goals.csv. Mehrere Ziele können aktiv sein. Fortschritt über Stufen (1..Ende), % automatisch.</div>
+          </div>
+          <div class="row">
+            <button class="btn secondary" id="btnAddGoal">Ziel aktivieren</button>
+          </div>
+        </div>
+
+        <div id="activeGoals" class="list" style="margin-top:12px"></div>
+
+        <hr>
+
+        <div class="row">
+          <button class="btn danger" id="btnClearAll">Alles löschen (Try & Error)</button>
+        </div>
+        <div class="small" style="margin-top:8px">Löscht nur lokale Browserdaten für dieses Tool.</div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:900">Statistiken</div>
+        <div class="small">Ranking erst ab 5 Vorkommen. Skalen 1–5. Ziele = % aus Stufen.</div>
+
+        <div class="sep"></div>
+
+        <div class="kpi">
+          <div class="box">
+            <div class="n" id="kpiTotal">0</div>
+            <div class="t">Einträge (30 Tage)</div>
+          </div>
+          <div class="box">
+            <div class="n" id="kpiDone">0%</div>
+            <div class="t">Erledigt-Quote (30 Tage)</div>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <div style="font-weight:900">Ranking Rubriken</div>
+        <div id="rankRubrik" class="list" style="margin-top:10px"></div>
+
+        <div class="sep"></div>
+
+        <div style="font-weight:900">Ranking Aufgaben (positiv)</div>
+        <div id="rankTasks" class="list" style="margin-top:10px"></div>
+
+        <div class="sep"></div>
+
+        <div style="font-weight:900">Zielerreichung</div>
+        <div id="goalProgress" class="list" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-weight:900">Logbook</div>
+          <div class="small">Einträge sind einzeln löschbar (Try & Error). Tageswechsel markiert offene Aufgaben als nicht erledigt.</div>
+        </div>
+        <div class="row">
+          <button class="btn secondary" id="btnRefreshLog">Aktualisieren</button>
+        </div>
+      </div>
+      <div id="logList" class="list" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Storage Keys ---------- */
+const K = {
+  SETTINGS: "kg_settings_v1",
+  TASKS: "kg_tasks_data_v1",
+  GOALS: "kg_goals_data_v1",
+  PLANS: "kg_plans_v1",
+  ACTIVE_GOALS: "kg_active_goals_v1",
+  QUEUE: "kg_queue_v1",
+  LOG: "kg_log_v1",
+  LAST_ROLLOVER: "kg_last_rollover_v1",
+  DISABLED_TASKS: "kg_disabled_tasks_v1"
+};
+
+const $ = (id)=>document.getElementById(id);
+
+function toast(msg){
+  const t=$("toast");
+  t.textContent=msg;
+  t.style.display="block";
+  setTimeout(()=>t.style.display="none",1400);
+}
+function setError(msg){
+  const e=$("err");
+  if(!msg){ e.style.display="none"; e.textContent=""; return; }
+  e.style.display="block"; e.textContent=msg;
+}
+function nowLocal(){ return new Date(); }
+function startOfToday(d=new Date()){
+  const x=new Date(d); x.setHours(0,0,0,0); return x;
+}
+function dayKey(d=new Date()){
+  const x=startOfToday(d);
+  return x.toISOString().slice(0,10);
+}
+
+/* ---------- State ---------- */
+let TASKS=[];       // from tasks.csv
+let GOALS=[];       // from goals.csv
+let SETTINGS = loadJson(K.SETTINGS, {topicTrain:"", topicReport:"", token:"", reportOnDone:false});
+let PLANS = loadJson(K.PLANS, []); // task plans
+let ACTIVE_GOALS = loadJson(K.ACTIVE_GOALS, []); // active goal configs
+let QUEUE = loadJson(K.QUEUE, []); // items scheduled for today (and open)
+let LOG = loadJson(K.LOG, []);     // completed/aborted items
+let DISABLED = loadJson(K.DISABLED_TASKS, {}); // taskId -> true
+
+/* ---------- JSON helpers ---------- */
+function loadJson(key, fallback){
+  try{
+    const v=localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  }catch{ return fallback; }
+}
+function saveJson(key, value){
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+/* ---------- CSV parsing ---------- */
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return {header:[], rows:[]};
+  const headerLine = lines.shift();
+  const sep = headerLine.includes(";") ? ";" : ",";
+  const header = headerLine.split(sep).map(s=>s.trim().toLowerCase());
+  const rows = lines.map(line=>{
+    const parts = line.split(sep).map(s=>(s??"").trim());
+    const obj={};
+    header.forEach((h,i)=>obj[h]=parts[i] ?? "");
+    return obj;
+  });
+  return {header, rows};
+}
+
+/* ---------- Load CSV files ---------- */
+async function loadCSVs(){
+  // tasks.csv
+  const tRes = await fetch("tasks.csv", {cache:"no-store"});
+  if(!tRes.ok) throw new Error("tasks.csv nicht gefunden (muss neben index.html liegen).");
+  const tText = await tRes.text();
+  const t = parseCSV(tText);
+
+  // required headers
+  const reqT = ["typ","rubrik","titel","klasse"];
+  for(const r of reqT) if(!t.header.includes(r)) throw new Error("tasks.csv Header erwartet: typ;rubrik;titel;klasse;...");
+  TASKS = t.rows
+    .filter(r => (r.typ||"").toLowerCase()==="aufgabe" && r.rubrik && r.titel && r.klasse)
+    .map(r => ({
+      id: `task:${r.rubrik}::${r.titel}`.toLowerCase(),
+      rubrik: r.rubrik.trim(),
+      titel: r.titel.trim(),
+      klasse: (r.klasse||"").trim().toLowerCase(),
+      standard_dauer: (r.standard_dauer||"").trim()
+    }));
+
+  // goals.csv
+  const gRes = await fetch("goals.csv", {cache:"no-store"});
+  if(!gRes.ok) throw new Error("goals.csv nicht gefunden (muss neben index.html liegen).");
+  const gText = await gRes.text();
+  const g = parseCSV(gText);
+  const reqG = ["ziel","end_stufe"];
+  for(const r of reqG) if(!g.header.includes(r)) throw new Error("goals.csv Header erwartet: ziel;end_stufe;...");
+  GOALS = g.rows
+    .filter(r => r.ziel && r.end_stufe)
+    .map(r => ({
+      id: `goal:${r.ziel}`.toLowerCase(),
+      ziel: r.ziel.trim(),
+      end_stufe: Math.max(1, parseInt(r.end_stufe,10) || 1),
+      beschreibung: (r.beschreibung||"").trim()
+    }));
+
+  saveJson(K.TASKS, TASKS);
+  saveJson(K.GOALS, GOALS);
+}
+
+/* ---------- ntfy push ---------- */
+async function ntfyPush(topic, title, message, tags="bell", priority="default"){
+  if(!topic) throw new Error("ntfy Topic fehlt.");
+  const headers = {
+    "Content-Type":"text/plain; charset=utf-8",
+    "Title": title,
+    "Tags": tags,
+    "Priority": priority
+  };
+  if(SETTINGS.token) headers["Authorization"] = `Bearer ${SETTINGS.token}`;
+  const res = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`, {
+    method:"POST", headers, body: message
+  });
+  if(!res.ok){
+    const txt = await res.text();
+    throw new Error(`Push fehlgeschlagen (${res.status}): ${txt.slice(0,140)}`);
+  }
+}
+
+/* ---------- Tabs ---------- */
+function setTab(which){
+  const train=$("tabTrain"), dash=$("tabDash");
+  const vTrain=$("viewTrain"), vDash=$("viewDash");
+  if(which==="train"){
+    train.classList.add("active"); dash.classList.remove("active");
+    train.classList.remove("secondary"); dash.classList.add("secondary");
+    vTrain.style.display="block"; vDash.style.display="none";
+  }else{
+    dash.classList.add("active"); train.classList.remove("active");
+    dash.classList.remove("secondary"); train.classList.add("secondary");
+    vDash.style.display="block"; vTrain.style.display="none";
+  }
+}
+
+/* ---------- Plans (Tasks scheduling setup) ---------- */
+/*
+Plan structure:
+{
+  id,
+  rubrik,
+  mode: "random_rubrik" | "fixed_tasks",
+  taskIds: [], // if fixed
+  countType: "day"|"week",
+  count: number,
+  windowType: "range"|"fixed",
+  from:"18:00", to:"22:00",
+  times:["09:00","21:30"],
+  enabled:true
+}
+*/
+function uniqRubriken(){
+  return [...new Set(TASKS.map(t=>t.rubrik))].sort((a,b)=>a.localeCompare(b,"de"));
+}
+function tasksInRubrik(r){ return TASKS.filter(t=>t.rubrik===r); }
+
+function addPlan(){
+  const rubriken = uniqRubriken();
+  const first = rubriken[0] || "";
+  const plan = {
+    id: `plan:${Date.now()}:${Math.floor(Math.random()*10000)}`,
+    rubrik: first,
+    mode: "random_rubrik",
+    taskIds: [],
+    countType: "day",
+    count: 3,
+    windowType: "range",
+    from: "08:00",
+    to: "22:00",
+    times: ["09:00","21:30"],
+    enabled: true
+  };
+  PLANS.unshift(plan);
+  saveJson(K.PLANS, PLANS);
+  renderPlans();
+  toast("Plan hinzugefügt.");
+}
+
+function renderPlans(){
+  const box=$("plans");
+  box.innerHTML="";
+  if(!PLANS.length){
+    box.innerHTML = `<div class="small">Noch keine Pläne. „Plan hinzufügen“.</div>`;
+    return;
+  }
+  for(const p of PLANS){
+    const div=document.createElement("div");
+    div.className="entry";
+    const rubOpts = uniqRubriken().map(r=>`<option ${r===p.rubrik?"selected":""}>${escapeHtml(r)}</option>`).join("");
+    const rubTasks = tasksInRubrik(p.rubrik)
+      .sort((a,b)=>a.titel.localeCompare(b.titel,"de"))
+      .map(t=>{
+        const dis = DISABLED[t.id] ? ` (deaktiviert)` : ``;
+        const checked = p.taskIds.includes(t.id) ? "checked" : "";
+        return `<label class="small" style="display:flex;gap:8px;align-items:center;margin:6px 0;">
+          <input type="checkbox" data-plan-task="${p.id}" value="${escapeHtml(t.id)}" ${checked}>
+          <span>${escapeHtml(t.titel)} <span class="small" style="opacity:.7">[${escapeHtml(t.klasse)}]${dis}</span></span>
+        </label>`;
+      }).join("");
+
+    div.innerHTML = `
+      <div class="ts">
+        <span class="badge pink">Plan</span>
+        <span class="badge">${p.enabled ? "aktiv" : "pausiert"}</span>
+        <span class="badge cyan">${escapeHtml(p.countType)}: ${p.count}×</span>
+      </div>
+
+      <div class="row" style="align-items:flex-start">
+        <div style="flex:1;min-width:220px">
+          <label>Rubrik</label>
+          <select data-plan-rubrik="${p.id}">${rubOpts}</select>
+        </div>
+        <div style="flex:1;min-width:220px">
+          <label>Auswahlmodus</label>
+          <select data-plan-mode="${p.id}">
+            <option value="random_rubrik" ${p.mode==="random_rubrik"?"selected":""}>Zufällig aus Rubrik</option>
+            <option value="fixed_tasks" ${p.mode==="fixed_tasks"?"selected":""}>Konkrete Aufgaben</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:180px">
+          <label>Häufigkeit</label>
+          <div class="row" style="gap:8px">
+            <input type="number" min="1" step="1" value="${p.count}" data-plan-count="${p.id}" style="max-width:120px">
+            <select data-plan-counttype="${p.id}" style="max-width:160px">
+              <option value="day" ${p.countType==="day"?"selected":""}>pro Tag</option>
+              <option value="week" ${p.countType==="week"?"selected":""}>pro Woche</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:8px;align-items:flex-start">
+        <div style="flex:1;min-width:220px">
+          <label>Zeitsteuerung</label>
+          <select data-plan-windowtype="${p.id}">
+            <option value="range" ${p.windowType==="range"?"selected":""}>Zufällig im Zeitraum</option>
+            <option value="fixed" ${p.windowType==="fixed"?"selected":""}>Fixe Uhrzeiten</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:220px" data-plan-rangeblock="${p.id}" ${p.windowType==="range"?"":"style='display:none'"} >
+          <label>Zeitraum</label>
+          <div class="row">
+            <input type="time" value="${p.from}" data-plan-from="${p.id}">
+            <input type="time" value="${p.to}" data-plan-to="${p.id}">
+          </div>
+        </div>
+        <div style="flex:1;min-width:220px" data-plan-fixedblock="${p.id}" ${p.windowType==="fixed"?"":"style='display:none'"} >
+          <label>Uhrzeiten (kommagetrennt)</label>
+          <input type="text" value="${escapeHtml((p.times||[]).join(", "))}" data-plan-times="${p.id}" placeholder="z.B. 09:00, 21:30">
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div data-plan-taskblock="${p.id}" ${p.mode==="fixed_tasks"?"":"style='display:none'"} >
+        <div class="small">Konkrete Aufgaben aktivieren (mehrere möglich):</div>
+        <div style="margin-top:6px">${rubTasks || `<div class="small">Keine Aufgaben in dieser Rubrik.</div>`}</div>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <button class="btn secondary" data-plan-toggle="${p.id}">${p.enabled ? "Pausieren" : "Aktivieren"}</button>
+        <button class="btn secondary" data-plan-delete="${p.id}">Entfernen</button>
+        <button class="btn secondary" data-plan-generate="${p.id}">Heute planen</button>
+      </div>
+    `;
+    box.appendChild(div);
+  }
+
+  // wire events
+  box.querySelectorAll("[data-plan-rubrik]").forEach(sel=>{
+    sel.onchange=()=>{
+      const id=sel.getAttribute("data-plan-rubrik");
+      const p=PLANS.find(x=>x.id===id);
+      p.rubrik=sel.value;
+      // reset fixed tasks when rubrik changes
+      p.taskIds = [];
+      saveJson(K.PLANS, PLANS);
+      renderPlans();
+    };
+  });
+  box.querySelectorAll("[data-plan-mode]").forEach(sel=>{
+    sel.onchange=()=>{
+      const id=sel.getAttribute("data-plan-mode");
+      const p=PLANS.find(x=>x.id===id);
+      p.mode=sel.value;
+      saveJson(K.PLANS, PLANS);
+      renderPlans();
+    };
+  });
+  box.querySelectorAll("[data-plan-count]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-plan-count");
+      const p=PLANS.find(x=>x.id===id);
+      p.count=Math.max(1, parseInt(inp.value||"1",10));
+      saveJson(K.PLANS, PLANS);
+      toast("Gespeichert.");
+    };
+  });
+  box.querySelectorAll("[data-plan-counttype]").forEach(sel=>{
+    sel.onchange=()=>{
+      const id=sel.getAttribute("data-plan-counttype");
+      const p=PLANS.find(x=>x.id===id);
+      p.countType=sel.value;
+      saveJson(K.PLANS, PLANS);
+      toast("Gespeichert.");
+    };
+  });
+  box.querySelectorAll("[data-plan-windowtype]").forEach(sel=>{
+    sel.onchange=()=>{
+      const id=sel.getAttribute("data-plan-windowtype");
+      const p=PLANS.find(x=>x.id===id);
+      p.windowType=sel.value;
+      saveJson(K.PLANS, PLANS);
+      renderPlans();
+    };
+  });
+  box.querySelectorAll("[data-plan-from]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-plan-from");
+      const p=PLANS.find(x=>x.id===id);
+      p.from=inp.value;
+      saveJson(K.PLANS, PLANS);
+    };
+  });
+  box.querySelectorAll("[data-plan-to]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-plan-to");
+      const p=PLANS.find(x=>x.id===id);
+      p.to=inp.value;
+      saveJson(K.PLANS, PLANS);
+    };
+  });
+  box.querySelectorAll("[data-plan-times]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-plan-times");
+      const p=PLANS.find(x=>x.id===id);
+      p.times = String(inp.value||"").split(",").map(s=>s.trim()).filter(Boolean);
+      saveJson(K.PLANS, PLANS);
+      toast("Uhrzeiten gespeichert.");
+    };
+  });
+  box.querySelectorAll("input[data-plan-task]").forEach(ch=>{
+    ch.onchange=()=>{
+      const planId=ch.getAttribute("data-plan-task");
+      const p=PLANS.find(x=>x.id===planId);
+      const taskId=ch.value;
+      if(ch.checked){
+        if(!p.taskIds.includes(taskId)) p.taskIds.push(taskId);
+      }else{
+        p.taskIds = p.taskIds.filter(x=>x!==taskId);
+      }
+      saveJson(K.PLANS, PLANS);
+    };
+  });
+  box.querySelectorAll("[data-plan-toggle]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-plan-toggle");
+      const p=PLANS.find(x=>x.id===id);
+      p.enabled=!p.enabled;
+      saveJson(K.PLANS, PLANS);
+      renderPlans();
+    };
+  });
+  box.querySelectorAll("[data-plan-delete]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-plan-delete");
+      PLANS = PLANS.filter(x=>x.id!==id);
+      saveJson(K.PLANS, PLANS);
+      renderPlans();
+      toast("Plan entfernt.");
+    };
+  });
+  box.querySelectorAll("[data-plan-generate]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-plan-generate");
+      const p=PLANS.find(x=>x.id===id);
+      planForToday([p]);
+      toast("Heute geplant.");
+      renderQueue();
+      renderTrainFocus();
+    };
+  });
+}
+
+/* ---------- Goals activation ---------- */
+/*
+Active goal structure:
+{
+ id, goalId,
+ active:true,
+ currentStufe: 1,
+ // scheduling
+ countType:"week"|"day",
+ count: 3,
+ windowType:"range"|"fixed",
+ from:"18:00", to:"22:00",
+ times:["20:00"]
+}
+*/
+function addGoal(){
+  if(!GOALS.length){ setError("goals.csv enthält keine Ziele."); return; }
+  const g=GOALS[0];
+  const cfg = {
+    id: `ag:${Date.now()}:${Math.floor(Math.random()*10000)}`,
+    goalId: g.id,
+    active: true,
+    currentStufe: 1,
+    countType:"week",
+    count: 3,
+    windowType:"fixed",
+    from:"08:00",
+    to:"22:00",
+    times:["20:00"]
+  };
+  ACTIVE_GOALS.unshift(cfg);
+  saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+  renderActiveGoals();
+  toast("Ziel aktiviert.");
+}
+
+function getGoalById(id){ return GOALS.find(g=>g.id===id); }
+
+function renderActiveGoals(){
+  const box=$("activeGoals");
+  box.innerHTML="";
+  if(!ACTIVE_GOALS.length){
+    box.innerHTML = `<div class="small">Noch keine aktiven Ziele. „Ziel aktivieren“.</div>`;
+    return;
+  }
+  for(const ag of ACTIVE_GOALS){
+    const g=getGoalById(ag.goalId);
+    if(!g) continue;
+    const pct = Math.min(100, Math.round((ag.currentStufe / g.end_stufe) * 100));
+    const goalOpts = GOALS
+      .slice()
+      .sort((a,b)=>a.ziel.localeCompare(b.ziel,"de"))
+      .map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===ag.goalId?"selected":""}>${escapeHtml(x.ziel)} (Ende ${x.end_stufe})</option>`).join("");
+
+    const div=document.createElement("div");
+    div.className="entry";
+    div.innerHTML = `
+      <div class="ts">
+        <span class="badge cyan">Ziel</span>
+        <span class="badge">${ag.active ? "aktiv" : "pausiert"}</span>
+        <span class="badge pink">${pct}%</span>
+      </div>
+
+      <div style="font-weight:900">${escapeHtml(g.ziel)}</div>
+      ${g.beschreibung ? `<div class="small" style="margin-top:4px">${escapeHtml(g.beschreibung)}</div>` : ""}
+
+      <div class="row" style="margin-top:10px;align-items:flex-start">
+        <div style="flex:1;min-width:260px">
+          <label>Ziel wählen</label>
+          <select data-goal-select="${ag.id}">${goalOpts}</select>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <label>Aktuelle Stufe</label>
+          <div class="row" style="gap:8px">
+            <input type="number" min="0" step="1" value="${ag.currentStufe}" data-goal-stufe="${ag.id}" style="max-width:140px">
+            <button class="btn secondary" data-goal-back="${ag.id}">-1</button>
+            <button class="btn secondary" data-goal-fwd="${ag.id}">+1</button>
+          </div>
+          <div class="small">Ende: ${g.end_stufe}</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;align-items:flex-start">
+        <div style="flex:1;min-width:220px">
+          <label>Häufigkeit</label>
+          <div class="row" style="gap:8px">
+            <input type="number" min="1" step="1" value="${ag.count}" data-goal-count="${ag.id}" style="max-width:120px">
+            <select data-goal-counttype="${ag.id}" style="max-width:160px">
+              <option value="day" ${ag.countType==="day"?"selected":""}>pro Tag</option>
+              <option value="week" ${ag.countType==="week"?"selected":""}>pro Woche</option>
+            </select>
+          </div>
+        </div>
+        <div style="flex:1;min-width:220px">
+          <label>Zeitsteuerung</label>
+          <select data-goal-windowtype="${ag.id}">
+            <option value="range" ${ag.windowType==="range"?"selected":""}>Zufällig im Zeitraum</option>
+            <option value="fixed" ${ag.windowType==="fixed"?"selected":""}>Fixe Uhrzeiten</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:220px" data-goal-range="${ag.id}" ${ag.windowType==="range"?"":"style='display:none'"} >
+          <label>Zeitraum</label>
+          <div class="row">
+            <input type="time" value="${ag.from}" data-goal-from="${ag.id}">
+            <input type="time" value="${ag.to}" data-goal-to="${ag.id}">
+          </div>
+        </div>
+        <div style="flex:1;min-width:220px" data-goal-fixed="${ag.id}" ${ag.windowType==="fixed"?"":"style='display:none'"} >
+          <label>Uhrzeiten (kommagetrennt)</label>
+          <input type="text" value="${escapeHtml((ag.times||[]).join(", "))}" data-goal-times="${ag.id}" placeholder="z.B. 20:00, 21:30">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <button class="btn secondary" data-goal-toggle="${ag.id}">${ag.active ? "Pausieren" : "Aktivieren"}</button>
+        <button class="btn secondary" data-goal-delete="${ag.id}">Entfernen</button>
+        <button class="btn secondary" data-goal-plan="${ag.id}">Heute planen</button>
+      </div>
+    `;
+    box.appendChild(div);
+  }
+
+  // wire
+  box.querySelectorAll("[data-goal-select]").forEach(sel=>{
+    sel.onchange=()=>{
+      const id=sel.getAttribute("data-goal-select");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.goalId=sel.value;
+      // clamp stufe to new goal
+      const g=getGoalById(ag.goalId);
+      ag.currentStufe=Math.min(Math.max(0, ag.currentStufe), g.end_stufe);
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      renderActiveGoals();
+      renderStats();
+    };
+  });
+  box.querySelectorAll("[data-goal-stufe]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-goal-stufe");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      const g=getGoalById(ag.goalId);
+      ag.currentStufe=Math.min(Math.max(0, parseInt(inp.value||"0",10)), g.end_stufe);
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      renderActiveGoals();
+      renderStats();
+    };
+  });
+  box.querySelectorAll("[data-goal-back]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-goal-back");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.currentStufe=Math.max(0, ag.currentStufe-1);
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      renderActiveGoals();
+      renderStats();
+    };
+  });
+  box.querySelectorAll("[data-goal-fwd]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-goal-fwd");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      const g=getGoalById(ag.goalId);
+      ag.currentStufe=Math.min(g.end_stufe, ag.currentStufe+1);
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      renderActiveGoals();
+      renderStats();
+    };
+  });
+  box.querySelectorAll("[data-goal-count]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-goal-count");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.count=Math.max(1, parseInt(inp.value||"1",10));
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      toast("Gespeichert.");
+    };
+  });
+  box.querySelectorAll("[data-goal-counttype]").forEach(sel=>{
+    sel.onchange=()=>{
+      const id=sel.getAttribute("data-goal-counttype");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.countType=sel.value;
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      toast("Gespeichert.");
+    };
+  });
+  box.querySelectorAll("[data-goal-windowtype]").forEach(sel=>{
+    sel.onchange=()=>{
+      const id=sel.getAttribute("data-goal-windowtype");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.windowType=sel.value;
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      renderActiveGoals();
+    };
+  });
+  box.querySelectorAll("[data-goal-from]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-goal-from");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.from=inp.value;
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+    };
+  });
+  box.querySelectorAll("[data-goal-to]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-goal-to");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.to=inp.value;
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+    };
+  });
+  box.querySelectorAll("[data-goal-times]").forEach(inp=>{
+    inp.onchange=()=>{
+      const id=inp.getAttribute("data-goal-times");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.times = String(inp.value||"").split(",").map(s=>s.trim()).filter(Boolean);
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      toast("Uhrzeiten gespeichert.");
+    };
+  });
+  box.querySelectorAll("[data-goal-toggle]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-goal-toggle");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      ag.active=!ag.active;
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      renderActiveGoals();
+    };
+  });
+  box.querySelectorAll("[data-goal-delete]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-goal-delete");
+      ACTIVE_GOALS = ACTIVE_GOALS.filter(x=>x.id!==id);
+      saveJson(K.ACTIVE_GOALS, ACTIVE_GOALS);
+      renderActiveGoals();
+      renderStats();
+      toast("Ziel entfernt.");
+    };
+  });
+  box.querySelectorAll("[data-goal-plan]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-goal-plan");
+      const ag=ACTIVE_GOALS.find(x=>x.id===id);
+      planGoalsForToday([ag]);
+      toast("Ziel für heute geplant.");
+      renderQueue();
+      renderTrainFocus();
+    };
+  });
+}
+
+/* ---------- Queue planning ---------- */
+/*
+Queue item structure:
+{
+  id,
+  kind: "task" | "goal",
+  planId/goalActiveId,
+  dueAt: ISO string,
+  createdDay: "YYYY-MM-DD",
+  title,
+  rubrik,
+  klasse,
+  goalId,
+  goalStufe,
+  status: "open" | "done" | "aborted" | "missed"
+  isBlitz: boolean
+  lastPushedAt?
+}
+*/
+function timeToDateToday(hhmm){
+  const [h,m]=String(hhmm||"").split(":").map(Number);
+  if(!Number.isFinite(h)||!Number.isFinite(m)) return null;
+  const d=new Date(); d.setHours(h,m,0,0);
+  return d;
+}
+function randomBetween(from, to){
+  const a=timeToDateToday(from), b=timeToDateToday(to);
+  if(!a||!b) return null;
+  if(b<=a) return null;
+  const t=a.getTime() + Math.random()*(b.getTime()-a.getTime());
+  return new Date(t);
+}
+function scheduleMoments(count, windowType, from, to, times){
+  const out=[];
+  if(windowType==="fixed"){
+    const list=(times||[]).map(t=>timeToDateToday(t)).filter(Boolean).filter(d=>d.getTime()>Date.now());
+    // if fixed list shorter than count: repeat next days? For today only -> cap
+    return list.slice(0, count);
+  }else{
+    for(let i=0;i<count;i++){
+      const d=randomBetween(from,to);
+      if(d && d.getTime()>Date.now()) out.push(d);
+    }
+    out.sort((a,b)=>a-b);
+    return out;
+  }
+}
+function pickFromPool(pool){
+  if(!pool.length) return null;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+function planForToday(plans=PLANS){
+  const today = dayKey();
+  // remove any queued items that are for today but already done? keep. We'll only ADD new "open" events.
+  for(const p of plans){
+    if(!p.enabled) continue;
+    if(!p.rubrik) continue;
+    let count = Math.max(1, parseInt(p.count||"1",10));
+    // weekly -> spread: naive approach: plan only a portion today if not enough planned this week
+    if(p.countType==="week"){
+      // plan ~ceil(count/7) today
+      count = Math.max(1, Math.ceil(count / 7));
+    }
+    const moments = scheduleMoments(count, p.windowType, p.from, p.to, p.times);
+
+    for(const due of moments){
+      const dueAt = due.toISOString();
+      // pick task
+      let task=null;
+      if(p.mode==="fixed_tasks" && (p.taskIds||[]).length){
+        const pool = p.taskIds.map(id=>TASKS.find(t=>t.id===id)).filter(Boolean).filter(t=>!DISABLED[t.id]);
+        task = pickFromPool(pool);
+      }else{
+        const pool = tasksInRubrik(p.rubrik).filter(t=>!DISABLED[t.id]);
+        task = pickFromPool(pool);
+      }
+      if(!task) continue;
+
+      // avoid duplicates at same dueAt/title for today
+      const exists = QUEUE.some(q=>q.createdDay===today && q.kind==="task" && q.dueAt===dueAt && q.title===task.titel);
+      if(exists) continue;
+
+      const isBlitz = (task.standard_dauer && task.standard_dauer.toLowerCase().includes("min")) ? (parseInt(task.standard_dauer,10) <= 10) : false;
+
+      QUEUE.push({
+        id: `q:${Date.now()}:${Math.floor(Math.random()*10000)}`,
+        kind:"task",
+        planId: p.id,
+        dueAt,
+        createdDay: today,
+        title: task.titel,
+        rubrik: task.rubrik,
+        klasse: task.klasse,
+        standard_dauer: task.standard_dauer,
+        status:"open",
+        isBlitz
+      });
+    }
+  }
+  saveJson(K.QUEUE, QUEUE);
+}
+
+function planGoalsForToday(activeGoals=ACTIVE_GOALS){
+  const today = dayKey();
+  for(const ag of activeGoals){
+    if(!ag.active) continue;
+    const g=getGoalById(ag.goalId);
+    if(!g) continue;
+    let count = Math.max(1, parseInt(ag.count||"1",10));
+    if(ag.countType==="week"){
+      count = Math.max(1, Math.ceil(count / 7));
+    }
+    const moments = scheduleMoments(count, ag.windowType, ag.from, ag.to, ag.times);
+    for(const due of moments){
+      const dueAt = due.toISOString();
+      const exists = QUEUE.some(q=>q.createdDay===today && q.kind==="goal" && q.dueAt===dueAt && q.goalId===g.id);
+      if(exists) continue;
+      QUEUE.push({
+        id: `q:${Date.now()}:${Math.floor(Math.random()*10000)}`,
+        kind:"goal",
+        goalActiveId: ag.id,
+        goalId: g.id,
+        goalTitle: g.ziel,
+        goalStufe: ag.currentStufe,
+        dueAt,
+        createdDay: today,
+        title: `${g.ziel} (Stufe ${ag.currentStufe})`,
+        rubrik: "Ziel",
+        klasse: "",
+        status:"open",
+        isBlitz:false
+      });
+    }
+  }
+  saveJson(K.QUEUE, QUEUE);
+}
+
+/* ---------- Rollover at 00:00 local (MEZ per browser) ---------- */
+function rolloverIfNeeded(){
+  const today = dayKey();
+  const last = localStorage.getItem(K.LAST_ROLLOVER);
+  if(last === today) return;
+  // mark any open items from previous days as missed
+  const changed = [];
+  for(const q of QUEUE){
+    if(q.status==="open" && q.createdDay !== today){
+      q.status="missed";
+      changed.push(q.id);
+      // log it as not done
+      LOG.unshift({
+        id: `log:${Date.now()}:${Math.floor(Math.random()*10000)}`,
+        ts: new Date().toISOString(),
+        when: new Date().toLocaleString("de-DE"),
+        kind: q.kind,
+        rubrik: q.rubrik,
+        title: q.title,
+        klasse: q.klasse || "",
+        status: "not_done",
+        gern: q._lastGern ?? null,
+        leicht: q._lastLeicht ?? null,
+        note: "Automatisch: Tageswechsel (nicht erledigt)"
+      });
+    }
+  }
+  // cleanup queue: keep last 7 days for display
+  const cutoff = startOfToday(new Date(Date.now() - 7*24*60*60*1000)).toISOString().slice(0,10);
+  QUEUE = QUEUE.filter(q => q.createdDay >= cutoff && q.status==="open");
+  saveJson(K.QUEUE, QUEUE);
+  saveJson(K.LOG, LOG);
+  localStorage.setItem(K.LAST_ROLLOVER, today);
+}
+
+/* ---------- Train focus ---------- */
+let ACTIVE_ITEM_ID = null;
+let FB_GERN = null;
+let FB_LEICHT = null;
+
+function renderTrainFocus(){
+  setError(null);
+  rolloverIfNeeded();
+
+  // choose active: earliest due open item for today; if none -> show none
+  const today = dayKey();
+  const open = QUEUE
+    .filter(q=>q.createdDay===today && q.status==="open")
+    .slice()
+    .sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt));
+
+  const active = open[0] || null;
+  ACTIVE_ITEM_ID = active ? active.id : null;
+
+  $("feedbackBlock").style.display = active ? "block" : "none";
+
+  if(!active){
+    $("activeTitle").textContent = "Keine offene Aufgabe.";
+    $("activeMeta").textContent = "";
+    return;
+  }
+  const due = new Date(active.dueAt).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+  const badges = [];
+  if(active.kind==="goal") badges.push(`<span class="badge cyan">Ziel</span>`);
+  if(active.isBlitz) badges.push(`<span class="badge pink">Blitzaufgabe</span>`);
+  if(active.klasse) badges.push(`<span class="badge">${escapeHtml(active.klasse)}</span>`);
+  badges.push(`<span class="badge">${escapeHtml(active.rubrik)}</span>`);
+  badges.push(`<span class="badge">${due}</span>`);
+  $("activeTitle").textContent = active.title;
+  $("activeMeta").innerHTML = badges.join(" ");
+
+  // reset feedback
+  FB_GERN = null; FB_LEICHT=null;
+  renderScale("scaleGern", (v)=>{FB_GERN=v;}, FB_GERN);
+  renderScale("scaleLeicht", (v)=>{FB_LEICHT=v;}, FB_LEICHT);
+}
+
+function renderScale(id, onPick, active){
+  const box=$(id);
+  box.innerHTML="";
+  for(let i=1;i<=5;i++){
+    const b=document.createElement("button");
+    b.textContent=String(i);
+    if(active===i) b.classList.add("active");
+    b.onclick=()=>{ onPick(i); renderTrainFocus(); };
+    box.appendChild(b);
+  }
+}
+
+/* ---------- Queue display ---------- */
+function renderQueue(){
+  rolloverIfNeeded();
+  const today=dayKey();
+  const box=$("queueList");
+  box.innerHTML="";
+  const open = QUEUE.filter(q=>q.createdDay===today && q.status==="open")
+    .slice().sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt));
+
+  if(!open.length){
+    box.innerHTML = `<div class="small">Keine offenen Aufgaben für heute.</div>`;
+    return;
+  }
+  for(const q of open){
+    const div=document.createElement("div");
+    div.className="entry";
+    const due = new Date(q.dueAt).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+    div.innerHTML = `
+      <div class="ts">
+        ${q.kind==="goal" ? `<span class="badge cyan">Ziel</span>` : `<span class="badge pink">Aufgabe</span>`}
+        ${q.isBlitz ? `<span class="badge pink">Blitz</span>` : ``}
+        ${q.klasse ? `<span class="badge">${escapeHtml(q.klasse)}</span>` : ``}
+        <span class="badge">${escapeHtml(q.rubrik)}</span>
+        <span class="badge">${due}</span>
+      </div>
+      <div style="font-weight:900">${escapeHtml(q.title)}</div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn secondary" data-q-push="${q.id}">Push</button>
+        <button class="btn secondary" data-q-skip="${q.id}">Später erneut einstreuen</button>
+      </div>
+    `;
+    box.appendChild(div);
+  }
+  box.querySelectorAll("[data-q-push]").forEach(btn=>{
+    btn.onclick=async()=>{
+      const id=btn.getAttribute("data-q-push");
+      const q=QUEUE.find(x=>x.id===id);
+      if(!q) return;
+      try{
+        await pushItem(q, false);
+        toast("Push gesendet.");
+      }catch(e){ setError(String(e.message||e)); }
+    };
+  });
+  box.querySelectorAll("[data-q-skip]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-q-skip");
+      const q=QUEUE.find(x=>x.id===id);
+      if(!q) return;
+      // reschedule later today (+ random 30-120 min)
+      const addMin = 30 + Math.floor(Math.random()*90);
+      const d = new Date(Math.max(Date.now()+addMin*60*1000, new Date(q.dueAt).getTime()+addMin*60*1000));
+      d.setSeconds(0,0);
+      q.dueAt = d.toISOString();
+      saveJson(K.QUEUE, QUEUE);
+      renderQueue();
+      renderTrainFocus();
+      toast("Wird später erneut erscheinen.");
+    };
+  });
+}
+
+/* ---------- Push formatting ---------- */
+function buildPushText(q){
+  const lines=[];
+  if(q.kind==="goal"){
+    lines.push(`Ziel: ${q.goalTitle || q.title}`);
+    lines.push(`Stufe: ${q.goalStufe ?? ""}`.trim());
+  }else{
+    lines.push(`Rubrik: ${q.rubrik}`);
+    lines.push(`Aufgabe: ${q.title}`);
+    if(q.standard_dauer) lines.push(`Rahmen: ${q.standard_dauer}`);
+    if(q.klasse) lines.push(`Klasse: ${q.klasse}`);
+  }
+  return lines.filter(Boolean).join("\n");
+}
+async function pushItem(q, isReminder){
+  const topic = SETTINGS.topicTrain;
+  if(!topic) throw new Error("Training-Topic fehlt (Dashboard → Topics).");
+  const title = isReminder ? "Erinnerung" : (q.isBlitz ? "Blitzaufgabe" : (q.kind==="goal" ? "Ziel-Training" : "Neue Aufgabe"));
+  const tags = isReminder ? "warning" : (q.isBlitz ? "sparkles" : (q.kind==="goal" ? "chart_with_upwards_trend" : "bell"));
+  await ntfyPush(topic, title, buildPushText(q), tags);
+  q.lastPushedAt = new Date().toISOString();
+  saveJson(K.QUEUE, QUEUE);
+}
+
+/* ---------- Complete / Abort ---------- */
+function requireFeedback(){
+  if(FB_GERN==null || FB_LEICHT==null){
+    setError("Bitte Feedback setzen: „gern“ und „leicht“ (1–5).");
+    return false;
+  }
+  setError(null);
+  return true;
+}
+
+async function finalizeActive(status){ // "done"|"aborted"
+  rolloverIfNeeded();
+  if(!ACTIVE_ITEM_ID) return;
+  if(!requireFeedback()) return;
+
+  const q=QUEUE.find(x=>x.id===ACTIVE_ITEM_ID);
+  if(!q) return;
+
+  // store last feedback onto q so rollover can log
+  q._lastGern = FB_GERN;
+  q._lastLeicht = FB_LEICHT;
+
+  // remove from queue (today)
+  q.status = status;
+  QUEUE = QUEUE.filter(x=>x.id!==q.id);
+  saveJson(K.QUEUE, QUEUE);
+
+  const entry = {
+    id: `log:${Date.now()}:${Math.floor(Math.random()*10000)}`,
+    ts: new Date().toISOString(),
+    when: new Date().toLocaleString("de-DE"),
+    kind: q.kind,
+    rubrik: q.rubrik,
+    title: q.title,
+    klasse: q.klasse || "",
+    status: status==="done" ? "done" : "aborted",
+    gern: FB_GERN,
+    leicht: FB_LEICHT
+  };
+  LOG.unshift(entry);
+  saveJson(K.LOG, LOG);
+
+  // goal progression suggestion is not automatic here (you said: B for % from stage, but stage changes via goal controls)
+  // optional reporting push
+  if(SETTINGS.reportOnDone && SETTINGS.topicReport){
+    try{
+      const report = `Status: ${entry.status}\n${q.kind==="goal" ? "Ziel" : "Aufgabe"}: ${q.title}\nRubrik: ${q.rubrik}\nGern: ${FB_GERN}/5\nLeicht: ${FB_LEICHT}/5`;
+      await ntfyPush(SETTINGS.topicReport, "Report", report, "memo");
+    }catch(e){
+      // keep silent-ish, but show soft error
+      setError(`Gespeichert, Reporting-Push fehlgeschlagen: ${String(e.message||e)}`);
+    }
+  }
+
+  toast(status==="done" ? "Erledigt gespeichert." : "Abgebrochen gespeichert.");
+  renderTrainFocus();
+  renderQueue();
+  renderStats();
+  renderLog();
+}
+
+/* ---------- Generate Now (manual pull) ---------- */
+function generateNow(){
+  // plan from enabled configs for today, then pick next due
+  planForToday(PLANS);
+  planGoalsForToday(ACTIVE_GOALS);
+  renderQueue();
+  renderTrainFocus();
+  toast("Aufgabe gezogen / geplant.");
+}
+
+/* ---------- Stats ---------- */
+function withinLastDays(n){
+  const since = new Date(Date.now()-n*24*60*60*1000);
+  return LOG.filter(e=>new Date(e.ts) >= since);
+}
+function avg(arr){ return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+
+function renderStats(){
+  const last = withinLastDays(30);
+
+  const total = last.length;
+  const done = last.filter(e=>e.status==="done").length;
+  $("kpiTotal").textContent = total;
+  $("kpiDone").textContent = total ? `${Math.round(done/total*100)}%` : "0%";
+
+  // Ranking Rubrik: score = doneRate * avgGern; min 5
+  const byRubrik = {};
+  for(const e of last){
+    if(!e.rubrik) continue;
+    const k=e.rubrik;
+    byRubrik[k] ||= {n:0, done:0, gern:[]};
+    byRubrik[k].n++;
+    if(e.status==="done") byRubrik[k].done++;
+    if(Number.isFinite(e.gern)) byRubrik[k].gern.push(e.gern);
+  }
+  const rub = Object.entries(byRubrik)
+    .filter(([_,v])=>v.n>=5)
+    .map(([k,v])=>{
+      const doneRate = v.n ? v.done/v.n : 0;
+      const g = avg(v.gern);
+      const score = doneRate * g;
+      return {rubrik:k, n:v.n, doneRate, gern:g, score};
+    })
+    .sort((a,b)=>b.score-a.score);
+
+  const rBox=$("rankRubrik"); rBox.innerHTML="";
+  if(!rub.length) rBox.innerHTML=`<div class="small">Noch nicht genug Daten (min. 5 pro Rubrik).</div>`;
+  else rub.slice(0,12).forEach(r=>{
+    const div=document.createElement("div");
+    div.className="entry";
+    div.innerHTML = `
+      <div class="ts"><span class="badge pink">Rubrik</span> <span class="badge">${r.n}×</span> <span class="badge">Erledigt ${Math.round(r.doneRate*100)}%</span></div>
+      <div style="font-weight:900">${escapeHtml(r.rubrik)}</div>
+      <div class="small">Ø gern: ${r.gern.toFixed(2)} · Score: ${r.score.toFixed(2)}</div>
+    `;
+    rBox.appendChild(div);
+  });
+
+  // Ranking Tasks positiv: by title+rubrik; sort by avg gern; min 5
+  const byTask={};
+  for(const e of last){
+    if(e.kind!=="task") continue;
+    const key = `${e.rubrik}::${e.title}`;
+    byTask[key] ||= {n:0, gern:[], leicht:[], done:0};
+    byTask[key].n++;
+    if(e.status==="done") byTask[key].done++;
+    if(Number.isFinite(e.gern)) byTask[key].gern.push(e.gern);
+    if(Number.isFinite(e.leicht)) byTask[key].leicht.push(e.leicht);
+  }
+  const tasks = Object.entries(byTask)
+    .filter(([_,v])=>v.n>=5)
+    .map(([k,v])=>{
+      const [rubrik,title]=k.split("::");
+      return {
+        rubrik, title,
+        n:v.n,
+        gern: avg(v.gern),
+        leicht: avg(v.leicht),
+        doneRate: v.done/v.n
+      };
+    })
+    .sort((a,b)=> (b.gern-a.gern) || (b.leicht-a.leicht) || (b.doneRate-a.doneRate));
+
+  const tBox=$("rankTasks"); tBox.innerHTML="";
+  if(!tasks.length) tBox.innerHTML=`<div class="small">Noch nicht genug Daten (min. 5 pro Aufgabe).</div>`;
+  else tasks.slice(0,12).forEach(t=>{
+    const div=document.createElement("div");
+    div.className="entry";
+    div.innerHTML = `
+      <div class="ts"><span class="badge pink">Aufgabe</span> <span class="badge">${t.n}×</span> <span class="badge">Erledigt ${Math.round(t.doneRate*100)}%</span></div>
+      <div style="font-weight:900">${escapeHtml(t.title)}</div>
+      <div class="small">${escapeHtml(t.rubrik)} · Ø gern ${t.gern.toFixed(2)} · Ø leicht ${t.leicht.toFixed(2)}</div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn secondary" data-disable-task="${escapeHtml(`task:${t.rubrik}::${t.title}`.toLowerCase())}">Deaktivieren</button>
+      </div>
+    `;
+    tBox.appendChild(div);
+  });
+
+  tBox.querySelectorAll("[data-disable-task]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-disable-task");
+      DISABLED[id]=true;
+      saveJson(K.DISABLED_TASKS, DISABLED);
+      toast("Aufgabe deaktiviert.");
+      renderPlans(); // reflect
+    };
+  });
+
+  // Goal progress: from ACTIVE_GOALS
+  const gBox=$("goalProgress"); gBox.innerHTML="";
+  if(!ACTIVE_GOALS.length){
+    gBox.innerHTML=`<div class="small">Keine aktiven Ziele.</div>`;
+  }else{
+    ACTIVE_GOALS.forEach(ag=>{
+      const g=getGoalById(ag.goalId); if(!g) return;
+      const pct = Math.min(100, Math.round((ag.currentStufe/g.end_stufe)*100));
+      const div=document.createElement("div");
+      div.className="entry";
+      div.innerHTML=`
+        <div class="ts"><span class="badge cyan">Ziel</span> <span class="badge pink">${pct}%</span> <span class="badge">${ag.active?"aktiv":"pausiert"}</span></div>
+        <div style="font-weight:900">${escapeHtml(g.ziel)}</div>
+        <div class="small">Stufe ${ag.currentStufe} / ${g.end_stufe}</div>
+      `;
+      gBox.appendChild(div);
+    });
+  }
+}
+
+/* ---------- Log rendering ---------- */
+function renderLog(){
+  const box=$("logList");
+  box.innerHTML="";
+  const last = LOG.slice(0,150);
+  if(!last.length){
+    box.innerHTML=`<div class="small">Noch keine Einträge.</div>`;
+    return;
+  }
+  for(const e of last){
+    const div=document.createElement("div");
+    div.className="entry";
+    const statusBadge = e.status==="done" ? `<span class="badge ok">erledigt</span>` :
+                        e.status==="aborted" ? `<span class="badge bad">abgebrochen</span>` :
+                        `<span class="badge bad">nicht erledigt</span>`;
+    div.innerHTML=`
+      <div class="ts">${statusBadge} <span class="badge">${escapeHtml(e.rubrik||"")}</span> ${e.klasse?`<span class="badge">${escapeHtml(e.klasse)}</span>`:""} <span class="badge">${escapeHtml(e.when)}</span></div>
+      <div style="font-weight:900">${escapeHtml(e.title)}</div>
+      <div class="small">Gern: ${e.gern ?? "-"} /5 · Leicht: ${e.leicht ?? "-"} /5</div>
+      ${e.note ? `<div class="small" style="margin-top:6px">${escapeHtml(e.note)}</div>` : ""}
+      <div class="row" style="margin-top:10px">
+        <button class="btn secondary" data-log-del="${e.id}">Entfernen</button>
+      </div>
+    `;
+    box.appendChild(div);
+  }
+  box.querySelectorAll("[data-log-del]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-log-del");
+      LOG = LOG.filter(x=>x.id!==id);
+      saveJson(K.LOG, LOG);
+      toast("Eintrag entfernt.");
+      renderLog();
+      renderStats();
+    };
+  });
+}
+
+/* ---------- Utilities ---------- */
+function escapeHtml(s){
+  return String(s??"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
+}
+
+/* ---------- Settings UI ---------- */
+function renderSettings(){
+  $("topicTrain").value = SETTINGS.topicTrain || "";
+  $("topicReport").value = SETTINGS.topicReport || "";
+  $("ntfyToken").value = SETTINGS.token || "";
+  $("reportOnDone").checked = !!SETTINGS.reportOnDone;
+}
+function saveSettingsFromUI(){
+  SETTINGS = {
+    topicTrain: $("topicTrain").value.trim(),
+    topicReport: $("topicReport").value.trim(),
+    token: $("ntfyToken").value.trim(),
+    reportOnDone: $("reportOnDone").checked
+  };
+  saveJson(K.SETTINGS, SETTINGS);
+  toast("Settings gespeichert.");
+}
+
+/* ---------- Buttons / wiring ---------- */
+function wire(){
+  $("tabTrain").onclick=()=>setTab("train");
+  $("tabDash").onclick=()=>{ setTab("dash"); renderStats(); renderLog(); };
+
+  $("btnReload").onclick=async()=>{
+    try{
+      await loadCSVs();
+      toast("CSV geladen.");
+      renderPlans();
+      renderActiveGoals();
+      renderStats();
+      renderQueue();
+      renderTrainFocus();
+    }catch(e){ setError(String(e.message||e)); }
+  };
+
+  $("btnGenerateNow").onclick=()=>generateNow();
+
+  $("btnPushNow").onclick=async()=>{
+    try{
+      if(!ACTIVE_ITEM_ID) return setError("Keine offene Aufgabe.");
+      const q=QUEUE.find(x=>x.id===ACTIVE_ITEM_ID);
+      await pushItem(q,false);
+      toast("Push gesendet.");
+    }catch(e){ setError(String(e.message||e)); }
+  };
+
+  $("btnDone").onclick=()=>finalizeActive("done");
+  $("btnAbort").onclick=()=>finalizeActive("aborted");
+
+  $("btnRefreshQueue").onclick=()=>{ renderQueue(); renderTrainFocus(); };
+
+  $("btnSaveSettings").onclick=saveSettingsFromUI;
+
+  $("btnTestPush").onclick=async()=>{
+    setError(null);
+    try{
+      saveSettingsFromUI();
+      if(!SETTINGS.topicTrain) return setError("Training-Topic fehlt.");
+      await ntfyPush(SETTINGS.topicTrain, "Push-Test", "Testnachricht vom Kinky Glam Trainer", "bell");
+      toast("Push-Test gesendet.");
+    }catch(e){ setError(String(e.message||e)); }
+  };
+
+  $("btnAddPlan").onclick=()=>{ addPlan(); };
+
+  $("btnAddGoal").onclick=()=>{ addGoal(); };
+
+  $("btnClearAll").onclick=()=>{
+    if(!confirm("Wirklich ALLES lokal löschen? (Pläne, Ziele, Queue, Log, Settings)")) return;
+    Object.values(K).forEach(k=>localStorage.removeItem(k));
+    // reset state
+    SETTINGS = {topicTrain:"", topicReport:"", token:"", reportOnDone:false};
+    PLANS=[]; ACTIVE_GOALS=[]; QUEUE=[]; LOG=[]; DISABLED={};
+    renderSettings(); renderPlans(); renderActiveGoals(); renderQueue(); renderTrainFocus(); renderStats(); renderLog();
+    toast("Alles gelöscht.");
+  };
+
+  $("btnRefreshLog").onclick=()=>{ renderLog(); renderStats(); };
+}
+
+function startSchedulers(){
+  // rollovers + reminders
+  setInterval(()=>{
+    try{
+      rolloverIfNeeded();
+      // optional reminder push: if next open item is overdue by >10 min and not pushed recently
+      const today=dayKey();
+      const open = QUEUE.filter(q=>q.createdDay===today && q.status==="open").sort((a,b)=>new Date(a.dueAt)-new Date(b.dueAt));
+      const q=open[0];
+      if(q){
+        const due=new Date(q.dueAt).getTime();
+        const overdue = Date.now() - due;
+        if(overdue > 10*60*1000){
+          const lastP = q.lastPushedAt ? new Date(q.lastPushedAt).getTime() : 0;
+          if(Date.now() - lastP > 60*60*1000 && SETTINGS.topicTrain){
+            pushItem(q, true).catch(()=>{});
+          }
+        }
+      }
+    }catch{}
+  }, 30000);
+}
+
+/* ---------- Init ---------- */
+(async()=>{
+  try{
+    // try load from local cache first
+    const cachedT = loadJson(K.TASKS, null);
+    const cachedG = loadJson(K.GOALS, null);
+    if(cachedT && cachedG){
+      TASKS=cachedT; GOALS=cachedG;
+    }else{
+      await loadCSVs();
+    }
+  }catch(e){
+    setError(String(e.message||e));
+  }
+
+  wire();
+  renderSettings();
+  renderPlans();
+  renderActiveGoals();
+
+  // auto-plan today once at start (if configs exist)
+  planForToday(PLANS);
+  planGoalsForToday(ACTIVE_GOALS);
+  renderQueue();
+  renderTrainFocus();
+
+  // keep stats/log fresh
+  renderStats();
+  renderLog();
+
+  startSchedulers();
+})();
+</script>
+</body>
+</html>
