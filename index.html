@@ -1,4 +1,7 @@
 <!doctype html>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0014">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <html lang="de">
 <head>
 <meta charset="utf-8" />
@@ -1692,6 +1695,18 @@ function startSchedulers(){
 
   startSchedulers();
 })();
+</script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", async () => {
+      try {
+        await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+        // optional: console.log("SW registered");
+      } catch (e) {
+        // optional: console.warn("SW failed", e);
+      }
+    });
+  }
 </script>
 </body>
 </html>
