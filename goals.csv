@@ -1,8 +1,4 @@
-ziel;end_stufe;beschreibung
-mit Ständer pissen können;10;Mit vollständiger Errektion an jedem Ort pissen zu können
-eigen KV essen;20;eigenen KV selbstverständlich essen zu können
-KV Verwendung;10;KV auf Körper verschmieren können, anderen auf Körper aufnehmen
-NS Geilheit;10;Geruch und Geschmack führen zur Errgung
-Fisttraining;20;Doppelfisting möglich
-Ejakulationsabbruch;20;Auf <codewort> Orgasmusabbruch 
-
+ziel_id;ziel_name;aktiv;aktuelle_stufe;max_stufe;min;max;zeitraum;modus;zeit_von;zeit_bis;feste_zeit;gewichtung
+KV;KV integrieren;true;1;5;3;7;WOCHE;ritualisiert;;;09:00;1
+ANAL;Anal Training;true;1;5;1;2;TAG;flexibel;14:00;20:00;;1
+EDGING;Edging Routine;false;1;5;1;5;TAG;flexibel;10:00;23:00;;2
