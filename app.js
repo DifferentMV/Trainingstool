@@ -118,25 +118,23 @@ async function fetchText(url) {
   return await res.text();
 }
 
-function parseCSV(text) {
+function parseCSV(text){
   // simple CSV/; parser (private use; no quoted separators)
-  // BOM safe + trims
-  const cleaned = String(text || "").replace(/^\uFEFF/, "");
-  const lines = cleaned.split(/\r?\n/).filter((l) => l.trim().length);
-  if (!lines.length) return [];
+  // BOM/Whitespace robust
+  const cleaned = String(text || "").replace(/^\uFEFF/, ""); // BOM weg
+  const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length);
+  if(!lines.length) return [];
 
   const sep = lines[0].includes(";") ? ";" : ",";
-  let header = lines.shift().split(sep).map((s) => s.trim());
+  let header = lines.shift().split(sep).map(s => s.trim());
 
-  // remove BOM on first header cell (GitHub/Excel often sneaks it in)
-  if (header.length && header[0]) header[0] = header[0].replace(/^\uFEFF/, "").trim();
+  // falls BOM im Header steckt (kommt gerne vor)
+  header[0] = header[0].replace(/^\uFEFF/, "").trim();
 
-  return lines.map((line) => {
-    const parts = line.split(sep).map((s) => (s ?? "").trim());
+  return lines.map(line=>{
+    const parts = line.split(sep).map(s => (s ?? "").trim());
     const row = {};
-    header.forEach((h, i) => {
-      row[h] = parts[i] ?? "";
-    });
+    header.forEach((h,i)=> row[h] = parts[i] ?? "");
     return row;
   });
 }
@@ -296,7 +294,9 @@ function ensureMinGap(sortedDates, candidate, minGapMinutes) {
 
 function generateGoalUnitsForToday() {
   const mode = state.settings.dayMode;
-  const goals = state.goalsData.map(normalizeGoalRow).filter((g) => g.ziel_id && g.aktiv);
+ const goals = state.goalsData
+  .map(mapGoalRow)
+  .filter(g => g.ziel_id);
 
   if (mode === "aussetzen") return [];
 
@@ -382,25 +382,60 @@ function generateGoalUnitsForToday() {
 
 /* ---------- Goal exercises (goal_uebungen.csv) ---------- */
 
-function pickExerciseForGoal(goalId, stufe) {
+function pickExerciseForGoal(goalId, stufe){
   const gid = normId(goalId);
-  const s = Number(stufe) || 1;
+  const lvl = parseInt(stufe || "1", 10) || 1;
 
-  const rows = state.goalsStepsData
-    .map((r) => ({
-      ziel_id: normId(getField(r, ["ziel_id", "goal_id", "id"], "")),
-      stufe: parseInt(getField(r, ["stufe", "level"], "1"), 10) || 1,
-      titel: normStr(getField(r, ["titel", "uebung", "title", "name"], "")),
-      klasse: normStr(getField(r, ["klasse", "class"], "")),
-      uebung_id: normStr(getField(r, ["uebung_id", "exercise_id", "id_uebung"], "")),
-    }))
-    .filter((x) => x.ziel_id && x.titel);
+  const rows = (state.goalsStepsData || []).map(r => ({
+    ziel_id: normId(r.ziel_id || r.goal_id || r.ziel || ""),
+    stufe: parseInt(r.stufe || "1", 10) || 1,
+    titel: String(r.titel || r.uebung || "").trim(),
+    klasse: String(r.klasse || "").trim()
+  })).filter(x => x.ziel_id && x.titel);
 
-  const list = rows.filter((x) => x.ziel_id === gid && x.stufe === s);
-  if (!list.length) return null;
+  const list = rows.filter(x => x.ziel_id === gid && x.stufe === lvl);
+  if(!list.length) return null;
+
   return list[Math.floor(Math.random() * list.length)];
 }
+function normId(x){
+  return String(x || "").trim().toUpperCase();
+}
 
+function mapGoalRow(g){
+  const ziel_id = normId(getField(g, ["ziel_id","id","ziel","zielid","zielId"]));
+  const ziel_name = getField(g, ["ziel_name","name","titel","zielname"], ziel_id);
+
+  const aktuelle_stufe = parseInt(getField(g, ["aktuelle_stufe","stufe","level"], "1"), 10) || 1;
+  const max_stufe = parseInt(getField(g, ["max_stufe","max_stufe","maxlevel","max"], "5"), 10) || 5;
+
+  const min = parseInt(getField(g, ["min","min_pro_zeitraum"], "0"), 10) || 0;
+  const max = parseInt(getField(g, ["max","max_pro_zeitraum"], "0"), 10) || 0;
+
+  const zeitraum = getField(g, ["zeitraum","periode"], "TAG").trim().toUpperCase();
+  const modus = getField(g, ["modus","mode"], "flexibel").trim().toLowerCase();
+
+  const zeit_von = getField(g, ["zeit_von","von"], "14:00").trim();
+  const zeit_bis = getField(g, ["zeit_bis","bis"], "20:00").trim();
+  const feste_zeit = getField(g, ["feste_zeit","uhrzeit","fix"], "09:00").trim();
+
+  const aktiv = normalizeBool(getField(g, ["aktiv","active"], "false"));
+
+  return {
+    ziel_id,
+    ziel_name,
+    aktiv,
+    aktuelle_stufe,
+    max_stufe,
+    min,
+    max,
+    zeitraum,
+    modus,
+    zeit_von,
+    zeit_bis,
+    feste_zeit
+  };
+}
 /* ---------- Schedule ---------- */
 
 function regenIfNeeded(force = false) {
@@ -842,7 +877,9 @@ function renderHome() {
 }
 
 function renderGoals() {
-  const goals = state.goalsData.map(normalizeGoalRow).filter((g) => g.ziel_id);
+ const goals = state.goalsData
+  .map(mapGoalRow)
+  .filter(g => g.ziel_id);
 
   const cards = goals.map((g) => {
     const { period, min, max, done } = computeGoalQuota(g);
