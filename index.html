@@ -3,12 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0b0014">
+
   <title>Glam Trainer</title>
+  <meta name="theme-color" content="#0b0014" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Icons (anpassen an deine Dateinamen) -->
+  <link rel="icon" type="image/png" sizes="192x192" href="Training192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="Training512.png" />
+  <link rel="apple-touch-icon" href="Training192.png" />
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
+      Dieses Tool braucht JavaScript, um zu funktionieren.
+    </div>
+  </noscript>
+
   <div class="bg"></div>
 
   <header class="topbar">
@@ -21,13 +36,13 @@
     </div>
 
     <div class="top-actions">
-      <select id="dayMode" class="select">
+      <select id="dayMode" class="select" aria-label="Tagesmodus">
         <option value="aussetzen">Aussetzen</option>
         <option value="sanft">Sanft</option>
         <option value="normal" selected>Normal</option>
         <option value="herausfordernd">Herausfordernd</option>
       </select>
-      <button class="btn secondary" id="btnSync" type="button" title="CSV neu laden">⟳</button>
+      <button class="btn secondary" id="btnSync" type="button" title="CSV neu laden" aria-label="CSV neu laden">⟳</button>
     </div>
   </header>
 
@@ -35,12 +50,12 @@
     <section id="view"></section>
   </main>
 
-  <nav class="bottomnav">
-    <button class="navbtn" data-route="#/home">Home</button>
-    <button class="navbtn" data-route="#/goals">Ziele</button>
-    <button class="navbtn" data-route="#/tasks">Aufgaben</button>
-    <button class="navbtn" data-route="#/log">Log</button>
-    <button class="navbtn" data-route="#/settings">Einstellungen</button>
+  <nav class="bottomnav" aria-label="Navigation">
+    <button class="navbtn" data-route="#/home" type="button">Home</button>
+    <button class="navbtn" data-route="#/goals" type="button">Ziele</button>
+    <button class="navbtn" data-route="#/tasks" type="button">Aufgaben</button>
+    <button class="navbtn" data-route="#/log" type="button">Log</button>
+    <button class="navbtn" data-route="#/settings" type="button">Einstellungen</button>
   </nav>
 
   <div class="toast" id="toast" aria-live="polite"></div>
