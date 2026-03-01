@@ -194,22 +194,20 @@ function ensureMinGap(sortedDates, candidate, minGapMinutes){
 
 function generateGoalUnitsForToday(){
   const mode=state.settings.dayMode;
-  const goals = state.goalsData
-    .map(g=>({
-      ziel_id: g.ziel_id || g.id || "",
-      ziel_name: g.ziel_name || g.name || g.ziel_id || "",
-      aktiv: normalizeBool(g.aktiv),
-      aktuelle_stufe: parseInt(g.aktuelle_stufe||g.stufe||"1",10) || 1,
-      max_stufe: parseInt(g.max_stufe||g.max_stufe||g.max||"5",10) || 5,
-      min: g.min || "0",
-      max: g.max || "0",
-      zeitraum: (g.zeitraum||"TAG").toUpperCase(),
-      modus: (g.modus||"flexibel").toLowerCase(), // flexibel | ritualisiert
-      zeit_von: g.zeit_von || "14:00",
-      zeit_bis: g.zeit_bis || "20:00",
-      feste_zeit: g.feste_zeit || "09:00",
-    }))
-    .filter(g=>g.ziel_id && g.aktiv);
+  const goals = state.goalsData.map(g=>({
+  ziel_id: getField(g, ["ziel_id","id","ziel","zielid","zielId"]),
+  ziel_name: getField(g, ["ziel_name","name","ziel_name_de","titel","zielname"], ""),
+  aktiv: normalizeBool(getField(g, ["aktiv","active"], "false")),
+  stufe: parseInt(getField(g, ["aktuelle_stufe","stufe","level"], "1"),10)||1,
+  max: parseInt(getField(g, ["max_stufe","max","maxlevel"], "5"),10)||5,
+  min: parseInt(getField(g, ["min","min_pro_zeitraum"], "0"),10)||0,
+  maxp: parseInt(getField(g, ["max","max_pro_zeitraum"], "0"),10)||0,
+  zeitraum: getField(g, ["zeitraum","periode"], "TAG").toUpperCase(),
+  modus: getField(g, ["modus","mode"], "flexibel").toLowerCase(),
+  zeit_von: getField(g, ["zeit_von","von"], "14:00"),
+  zeit_bis: getField(g, ["zeit_bis","bis"], "20:00"),
+  feste_zeit: getField(g, ["feste_zeit","uhrzeit","fix"], "09:00"),
+})).filter(g=>g.ziel_id);
 
   if(mode==="aussetzen") return [];
 
@@ -711,19 +709,19 @@ function renderHome(){
 
 function renderGoals(){
   const goals = state.goalsData.map(g=>({
-    ziel_id: g.ziel_id || g.id || "",
-    ziel_name: g.ziel_name || g.name || g.ziel_id || "",
-    aktiv: normalizeBool(g.aktiv),
-    stufe: parseInt(g.aktuelle_stufe||g.stufe||"1",10)||1,
-    max: parseInt(g.max_stufe||g.max||"5",10)||5,
-    min: parseInt(g.min||"0",10)||0,
-    maxp: parseInt(g.max||"0",10)||0,
-    zeitraum: (g.zeitraum||"TAG").toUpperCase(),
-    modus: (g.modus||"flexibel").toLowerCase(),
-    zeit_von: g.zeit_von || "14:00",
-    zeit_bis: g.zeit_bis || "20:00",
-    feste_zeit: g.feste_zeit || "09:00",
-  })).filter(g=>g.ziel_id);
+  ziel_id: getField(g, ["ziel_id","id","ziel","zielid","zielId"]),
+  ziel_name: getField(g, ["ziel_name","name","ziel_name_de","titel","zielname"], ""),
+  aktiv: normalizeBool(getField(g, ["aktiv","active"], "false")),
+  stufe: parseInt(getField(g, ["aktuelle_stufe","stufe","level"], "1"),10)||1,
+  max: parseInt(getField(g, ["max_stufe","max","maxlevel"], "5"),10)||5,
+  min: parseInt(getField(g, ["min","min_pro_zeitraum"], "0"),10)||0,
+  maxp: parseInt(getField(g, ["max","max_pro_zeitraum"], "0"),10)||0,
+  zeitraum: getField(g, ["zeitraum","periode"], "TAG").toUpperCase(),
+  modus: getField(g, ["modus","mode"], "flexibel").toLowerCase(),
+  zeit_von: getField(g, ["zeit_von","von"], "14:00"),
+  zeit_bis: getField(g, ["zeit_bis","bis"], "20:00"),
+  feste_zeit: getField(g, ["feste_zeit","uhrzeit","fix"], "09:00"),
+})).filter(g=>g.ziel_id);
 
   const cards = goals.map(g=>{
     const {period, min, max, done} = computeGoalQuota(g);
