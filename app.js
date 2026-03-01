@@ -102,7 +102,12 @@ function normalizeBool(v){
   const s=String(v||"").trim().toLowerCase();
   return s==="true"||s==="ja"||s==="1"||s==="y"||s==="yes";
 }
-
+function getField(row, aliases, fallback=""){
+  for(const a of aliases){
+    if(row[a] !== undefined && String(row[a]).trim() !== "") return String(row[a]).trim();
+  }
+  return fallback;
+}
 /* ---------- State ---------- */
 
 const state = {
