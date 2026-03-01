@@ -340,7 +340,7 @@ function generateGoalUnitsForToday() {
         typ: "ziel",
         ziel_id: g.ziel_id,
         ziel_name: g.ziel_name || g.ziel_id,
-        stufe: clamp(g.aktuelle_stufe, 1, g.max_stufe),
+        stufe: clamp(g.stufe, 1, g.max),
         plannedAt: null,
         plannedLabel: "",
         status: "geplant",
