@@ -767,26 +767,68 @@ function renderTasks(){
     ...rubriken.map(r=>h("option",{value:r},[r]))
   ]);
 
+  const taskSel=h("select",{class:"select", id:"taskSel", disabled:"true"},[
+    h("option",{value:""},["Aufgabe wählen"])
+  ]);
+
   const out=h("div",{id:"taskOut", style:"white-space:pre-line; font-weight:800; margin-top:10px"},[""]);
 
   const btnRandom=h("button",{class:"btn secondary", type:"button"},["Zufallsaufgabe"]);
   const btnPush=h("button",{class:"btn secondary", type:"button"},["Push senden (Aufgabe)"]);
 
-  btnRandom.onclick=()=>{
-    const rub=rubSel.value;
-    if(!rub){ toast("Bitte Rubrik wählen."); return; }
-    const items=state.tasksData
+  function getItemsForRubrik(rub){
+    return state.tasksData
       .map(r=>({
         rubrik:(r.rubrik||"").trim(),
         titel:(r.titel||"").trim(),
         klasse:(r.klasse||"").trim()
       }))
       .filter(x=>x.rubrik===rub && x.titel);
-    if(!items.length){ toast("Keine Aufgaben in dieser Rubrik."); return; }
-    const it=items[Math.floor(Math.random()*items.length)];
+  }
+
+  function setOutFromItem(it){
     out.textContent = `🧩 Aufgabe\nRubrik: ${it.rubrik}\n\n${it.titel}${it.klasse ? "\n\nKlasse: "+it.klasse : ""}`;
     out.dataset.payload = JSON.stringify(it);
-    toast("Gewählt.");
+  }
+
+  function rebuildTaskSelect(){
+    const rub=rubSel.value;
+    taskSel.innerHTML="";
+    taskSel.appendChild(h("option",{value:""},["Aufgabe wählen"]));
+
+    if(!rub){
+      taskSel.disabled=true;
+      return;
+    }
+
+    const items=getItemsForRubrik(rub);
+    items.forEach((it, idx)=>{
+      taskSel.appendChild(h("option",{value:String(idx)},[`${it.titel}${it.klasse ? " ["+it.klasse+"]" : ""}`]));
+    });
+    taskSel.disabled = items.length ? false : true;
+  }
+
+  rubSel.onchange=()=>{
+    rebuildTaskSelect();
+    out.textContent="";
+    delete out.dataset.payload;
+  };
+
+  taskSel.onchange=()=>{
+    const rub=rubSel.value;
+    const items=getItemsForRubrik(rub);
+    const idx=parseInt(taskSel.value||"-1",10);
+    if(idx>=0 && items[idx]) setOutFromItem(items[idx]);
+  };
+
+  btnRandom.onclick=()=>{
+    const rub=rubSel.value;
+    if(!rub){ toast("Bitte Rubrik wählen."); return; }
+    const items=getItemsForRubrik(rub);
+    if(!items.length){ toast("Keine Aufgaben in dieser Rubrik."); return; }
+    const it=items[Math.floor(Math.random()*items.length)];
+    setOutFromItem(it);
+    toast("Zufallsaufgabe gewählt.");
   };
 
   btnPush.onclick=async()=>{
@@ -797,8 +839,8 @@ function renderTasks(){
       await sendNtfy(s.ntfyTasksTopic, s.ntfyToken, `Aufgabe\nRubrik: ${payload.rubrik}\n\n${payload.titel}`, "Aufgabe");
       toast("Push gesendet.");
     }catch(e){
-      toast("Push fehlgeschlagen.");
       console.warn(e);
+      toast("Push fehlgeschlagen.");
     }
   };
 
@@ -807,6 +849,7 @@ function renderTasks(){
     h("div",{class:"small"},["Aufgaben sind optional (Lust / Anja). Keine Progression, keine Strafen."]),
     h("div",{class:"hr"},[]),
     rubSel,
+    taskSel,
     h("div",{class:"row"},[btnRandom, btnPush]),
     out
   ]);
