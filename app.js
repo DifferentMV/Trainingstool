@@ -1,13 +1,12 @@
 /* Glam Trainer — V1.2 (Vanilla JS, GitHub Pages)
    Storage: localStorage. Push: ntfy.sh.
-   Fixes:
-   - Robust CSV parse (BOM/Whitespace)
-   - normId/normStr korrigiert (kein Crash)
-   - Keine losen Codeblöcke (kein "nur Hintergrund")
-   - Home zeigt NUR geplante Einheiten aus aktiven Zielen
-   - Wenn alle Ziele pausiert: Tagesplan wird automatisch geleert
+
+   Fixes (wichtig):
+   - normId() korrekt (kein undefined v)
+   - Home zeigt Ziele NUR wenn aktiv (aus goals.csv)
+   - Schedule wird bereinigt: pausierte/gelöschte Ziele tauchen NICHT mehr auf
+   - Schedule regeneriert, wenn aktive Ziele / dayMode sich ändern (Hash)
    - goal_uebungen.csv Match über normierte ziel_id + stufe
-   - Service Worker: versucht sw.js und service-worker.js
 */
 
 const STORAGE = {
@@ -31,14 +30,16 @@ const DEFAULT_SETTINGS = {
   ntfyReportTopic: "",
   ntfyToken: "",
 
-  tickSeconds: 20, // Push-Dispatch im offenen Tab
+  tickSeconds: 20,
 };
 
 const $ = (id) => document.getElementById(id);
 
 /* ---------- Utils ---------- */
 
-function nowISO() { return new Date().toISOString(); }
+function nowISO() {
+  return new Date().toISOString();
+}
 
 function todayKey(d = new Date()) {
   const x = new Date(d);
@@ -46,9 +47,13 @@ function todayKey(d = new Date()) {
   return x.toISOString().slice(0, 10);
 }
 
-function pad2(n) { return String(n).padStart(2, "0"); }
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
 
-function fmtTime(d) { return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
+function fmtTime(d) {
+  return pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+}
 
 function parseTimeToDateToday(hhmm) {
   const [h, m] = String(hhmm || "").split(":").map(Number);
@@ -59,15 +64,22 @@ function parseTimeToDateToday(hhmm) {
 }
 
 function randInt(min, max) {
-  const a = Math.min(min, max), b = Math.max(min, max);
+  const a = Math.min(min, max);
+  const b = Math.max(min, max);
   return a + Math.floor(Math.random() * (b - a + 1));
 }
 
-function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
 
-function normId(x) { return String(x ?? "").trim().toUpperCase(); }
+function normId(x) {
+  return String(x || "").trim().toUpperCase();
+}
 
-function normStr(v) { return String(v ?? "").trim(); }
+function normStr(x) {
+  return String(x || "").trim();
+}
 
 function toast(msg) {
   const t = $("toast");
@@ -75,7 +87,9 @@ function toast(msg) {
   t.textContent = msg;
   t.style.display = "block";
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => { t.style.display = "none"; }, 1400);
+  toast._t = setTimeout(() => {
+    t.style.display = "none";
+  }, 1400);
 }
 
 function loadJSON(key, fallback) {
@@ -103,7 +117,8 @@ function startOfWeek(d = new Date()) {
 function inThisWeek(dateISO) {
   const d = new Date(dateISO);
   const s = startOfWeek();
-  const e = new Date(s); e.setDate(e.getDate() + 7);
+  const e = new Date(s);
+  e.setDate(e.getDate() + 7);
   return d >= s && d < e;
 }
 
@@ -114,20 +129,20 @@ async function fetchText(url) {
 }
 
 function parseCSV(text) {
-  // Simple CSV/; parser (no quoted separators)
+  // simple CSV/; parser (private use; no quoted separators)
   // BOM/Whitespace robust
   const cleaned = String(text || "").replace(/^\uFEFF/, "");
-  const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length);
+  const lines = cleaned.split(/\r?\n/).filter((l) => l.trim().length);
   if (!lines.length) return [];
 
   const sep = lines[0].includes(";") ? ";" : ",";
-  let header = lines.shift().split(sep).map(s => s.trim());
+  let header = lines.shift().split(sep).map((s) => s.trim());
   header[0] = header[0].replace(/^\uFEFF/, "").trim();
 
-  return lines.map(line => {
-    const parts = line.split(sep).map(s => (s ?? "").trim());
+  return lines.map((line) => {
+    const parts = line.split(sep).map((s) => (s ?? "").trim());
     const row = {};
-    header.forEach((h, i) => row[h] = parts[i] ?? "");
+    header.forEach((h, i) => (row[h] = parts[i] ?? ""));
     return row;
   });
 }
@@ -139,9 +154,7 @@ function normalizeBool(v) {
 
 function getField(row, aliases, fallback = "") {
   for (const a of aliases) {
-    if (row && row[a] !== undefined && String(row[a]).trim() !== "") {
-      return String(row[a]).trim();
-    }
+    if (row[a] !== undefined && String(row[a]).trim() !== "") return String(row[a]).trim();
   }
   return fallback;
 }
@@ -153,20 +166,34 @@ const state = {
   tasksData: loadJSON(STORAGE.tasks, []),
   goalsData: loadJSON(STORAGE.goals, []),
   goalsStepsData: loadJSON(STORAGE.steps, []),
-
   route: "#/home",
   filter: "all", // all | goals | tasks
 };
 
-function persistSettings() { saveJSON(STORAGE.settings, state.settings); }
-function getLog() { return loadJSON(STORAGE.log, []); }
-function setLog(x) { saveJSON(STORAGE.log, x); }
+function persistSettings() {
+  saveJSON(STORAGE.settings, state.settings);
+}
 
-function getSchedule() { return loadJSON(STORAGE.schedule, null); }
-function setSchedule(x) { saveJSON(STORAGE.schedule, x); }
+function getLog() {
+  return loadJSON(STORAGE.log, []);
+}
+function setLog(x) {
+  saveJSON(STORAGE.log, x);
+}
 
-function getInbox() { return loadJSON(STORAGE.inbox, []); }
-function setInbox(x) { saveJSON(STORAGE.inbox, x); }
+function getSchedule() {
+  return loadJSON(STORAGE.schedule, null);
+}
+function setSchedule(x) {
+  saveJSON(STORAGE.schedule, x);
+}
+
+function getInbox() {
+  return loadJSON(STORAGE.inbox, []);
+}
+function setInbox(x) {
+  saveJSON(STORAGE.inbox, x);
+}
 
 function setDayMode(mode) {
   state.settings.dayMode = mode;
@@ -193,7 +220,7 @@ async function loadAllCSV() {
   saveJSON(STORAGE.steps, state.goalsStepsData);
 }
 
-/* ---------- Goal normalization ---------- */
+/* ---------- Goals: Normalisierung + Active Set ---------- */
 
 function normalizeGoalRow(raw) {
   const ziel_id = normId(getField(raw, ["ziel_id", "id", "ziel", "zielid", "zielId"]));
@@ -202,12 +229,14 @@ function normalizeGoalRow(raw) {
   const aktiv = normalizeBool(getField(raw, ["aktiv", "active"], "false"));
 
   const aktuelle_stufe = parseInt(getField(raw, ["aktuelle_stufe", "stufe", "level"], "1"), 10) || 1;
-  const max_stufe = parseInt(getField(raw, ["max_stufe", "maxlevel", "stufe_max", "stufen_max"], "5"), 10) || 5;
+  const max_stufe = parseInt(getField(raw, ["max_stufe", "maxlevel", "stufen_max", "stufe_max"], "5"), 10) || 5;
 
   const min = parseInt(getField(raw, ["min", "min_pro_zeitraum", "min_zeitraum"], "0"), 10) || 0;
   const max = parseInt(getField(raw, ["max", "max_pro_zeitraum", "max_zeitraum"], "0"), 10) || 0;
 
-  const zeitraum = normStr(getField(raw, ["zeitraum", "periode"], "TAG")).toUpperCase() === "WOCHE" ? "WOCHE" : "TAG";
+  const zeitraum =
+    normStr(getField(raw, ["zeitraum", "periode"], "TAG")).toUpperCase() === "WOCHE" ? "WOCHE" : "TAG";
+
   const modus = normStr(getField(raw, ["modus", "mode"], "flexibel")).toLowerCase();
 
   const zeit_von = normStr(getField(raw, ["zeit_von", "von"], "14:00"));
@@ -216,14 +245,14 @@ function normalizeGoalRow(raw) {
 
   const gewichtung = parseInt(getField(raw, ["gewichtung", "weight"], "1"), 10) || 1;
 
-  const maxSt = Math.max(1, max_stufe);
+  const maxStufeSafe = Math.max(1, max_stufe);
 
   return {
     ziel_id,
     ziel_name,
     aktiv,
-    aktuelle_stufe: clamp(aktuelle_stufe, 1, maxSt),
-    max_stufe: maxSt,
+    aktuelle_stufe: clamp(aktuelle_stufe, 1, maxStufeSafe),
+    max_stufe: maxStufeSafe,
     min: Math.max(0, min),
     max: Math.max(0, max),
     zeitraum,
@@ -235,13 +264,40 @@ function normalizeGoalRow(raw) {
   };
 }
 
-function getActiveGoals() {
-  return (state.goalsData || [])
-    .map(normalizeGoalRow)
-    .filter(g => g.ziel_id && g.aktiv === true);
+function getAllGoalsNormalized() {
+  return (state.goalsData || []).map(normalizeGoalRow).filter((g) => g.ziel_id);
 }
 
-/* ---------- Schedule generation (Goals) ---------- */
+function getActiveGoals() {
+  const all = getAllGoalsNormalized();
+  const active = all.filter((g) => g.aktiv === true);
+  const activeIds = new Set(active.map((g) => g.ziel_id));
+  return { all, active, activeIds };
+}
+
+function computeGoalsHash(activeGoals) {
+  // Hash, damit Schedule neu gebaut wird, wenn Aktiv-Liste oder wichtige Felder sich ändern
+  // (leicht & robust; kein Crypto nötig)
+  const key = activeGoals
+    .map((g) => [
+      g.ziel_id,
+      g.aktiv ? "1" : "0",
+      g.aktuelle_stufe,
+      g.max_stufe,
+      g.min,
+      g.max,
+      g.zeitraum,
+      g.modus,
+      g.zeit_von,
+      g.zeit_bis,
+      g.feste_zeit,
+    ].join("|"))
+    .sort()
+    .join("~");
+  return key;
+}
+
+/* ---------- Schedule generation (Goals only) ---------- */
 
 function countGoalDoneThisPeriod(goalId, period) {
   const gid = normId(goalId);
@@ -249,19 +305,13 @@ function countGoalDoneThisPeriod(goalId, period) {
 
   if (period === "TAG") {
     const t = todayKey();
-    return log.filter(e =>
-      e.typ === "ziel" &&
-      normId(e.ziel_id) === gid &&
-      e.status === "erledigt" &&
-      e.dayKey === t
+    return log.filter(
+      (e) => e.typ === "ziel" && normId(e.ziel_id) === gid && e.status === "erledigt" && e.dayKey === t
     ).length;
   }
 
-  return log.filter(e =>
-    e.typ === "ziel" &&
-    normId(e.ziel_id) === gid &&
-    e.status === "erledigt" &&
-    inThisWeek(e.createdAt)
+  return log.filter(
+    (e) => e.typ === "ziel" && normId(e.ziel_id) === gid && e.status === "erledigt" && inThisWeek(e.createdAt)
   ).length;
 }
 
@@ -289,13 +339,12 @@ function ensureMinGap(sortedDates, candidate, minGapMinutes) {
   return true;
 }
 
-function generateGoalUnitsForToday() {
+function generateGoalUnitsForToday(activeGoals) {
   const mode = state.settings.dayMode;
   if (mode === "aussetzen") return [];
 
-  const goals = getActiveGoals();
-
-  // Wenn keine aktiven Ziele → KEINE Units
+  // NUR aktive Ziele
+  const goals = activeGoals || [];
   if (!goals.length) return [];
 
   const units = [];
@@ -303,28 +352,31 @@ function generateGoalUnitsForToday() {
   for (const g of goals) {
     const { period, min, max, done } = computeGoalQuota(g);
 
-    // max erreicht -> keine Units mehr
+    // Max erreicht -> keine neuen Units
     if (max > 0 && done >= max) continue;
 
     let want = 0;
 
     if (period === "TAG") {
       const minAdj = mode === "sanft" ? Math.min(min, 1) : min;
-      const baseMax = max || min || 1;
 
-      let maxAdj = baseMax;
-      if (mode === "sanft") maxAdj = Math.min(baseMax, 1);
-      if (mode === "herausfordernd") maxAdj = baseMax;
+      const baseMax = max || min || 1;
+      const maxAdj =
+        mode === "sanft"
+          ? Math.min(baseMax, 1)
+          : mode === "herausfordernd"
+          ? baseMax
+          : baseMax;
 
       const minUse = Math.max(0, minAdj);
       const maxUse = Math.max(minUse, maxAdj);
 
-      want = (maxUse === 0 && minUse === 0) ? 0 : randInt(minUse, maxUse);
+      want = maxUse === 0 && minUse === 0 ? 0 : randInt(minUse, maxUse);
     } else {
-      // WOCHE: minimal nachschieben
+      // WOCHE
       if (done < min) want = 1;
       else if (max > 0 && done < max) {
-        const p = mode === "sanft" ? 0.25 : (mode === "herausfordernd" ? 0.55 : 0.4);
+        const p = mode === "sanft" ? 0.25 : mode === "herausfordernd" ? 0.55 : 0.4;
         want = Math.random() < p ? 1 : 0;
       }
     }
@@ -334,7 +386,7 @@ function generateGoalUnitsForToday() {
         id: `goalunit-${g.ziel_id}-${todayKey()}-${i}-${Math.floor(Math.random() * 100000)}`,
         typ: "ziel",
         ziel_id: g.ziel_id,
-        ziel_name: g.ziel_name,
+        ziel_name: g.ziel_name || g.ziel_id,
         stufe: clamp(g.aktuelle_stufe, 1, g.max_stufe),
         plannedAt: null,
         plannedLabel: "",
@@ -347,12 +399,15 @@ function generateGoalUnitsForToday() {
   // Zeiten planen
   const plannedDates = [];
   for (const u of units) {
-    const g = goals.find(x => normId(x.ziel_id) === normId(u.ziel_id));
+    const g = goals.find((x) => normId(x.ziel_id) === normId(u.ziel_id));
     if (!g) continue;
 
     let dt = null;
-    if (g.modus === "ritualisiert") dt = parseTimeToDateToday(g.feste_zeit) || new Date();
-    else dt = pickRandomTimeBetween(g.zeit_von, g.zeit_bis) || new Date();
+    if (g.modus === "ritualisiert") {
+      dt = parseTimeToDateToday(g.feste_zeit) || new Date();
+    } else {
+      dt = pickRandomTimeBetween(g.zeit_von, g.zeit_bis) || new Date();
+    }
 
     const softGap = Math.max(10, Math.floor(state.settings.minGapGoalsMin / 2));
     let tries = 0;
@@ -379,59 +434,109 @@ function pickExerciseForGoal(goalId, stufe) {
   const lvl = parseInt(stufe || "1", 10) || 1;
 
   const rows = (state.goalsStepsData || [])
-    .map(r => ({
+    .map((r) => ({
       ziel_id: normId(r.ziel_id || r.goal_id || r.ziel || ""),
       stufe: parseInt(r.stufe || "1", 10) || 1,
       titel: String(r.titel || r.uebung || "").trim(),
-      klasse: String(r.klasse || "").trim()
+      klasse: String(r.klasse || "").trim(),
     }))
-    .filter(x => x.ziel_id && x.titel);
+    .filter((x) => x.ziel_id && x.titel);
 
-  const list = rows.filter(x => x.ziel_id === gid && x.stufe === lvl);
+  const list = rows.filter((x) => x.ziel_id === gid && x.stufe === lvl);
   if (!list.length) return null;
+
   return list[Math.floor(Math.random() * list.length)];
 }
 
-/* ---------- Schedule ---------- */
+/* ---------- Schedule: regen + cleanup ---------- */
+
+function cleanupScheduleAgainstActiveGoals(schedule, activeIds) {
+  if (!schedule || !Array.isArray(schedule.units)) return schedule;
+
+  schedule.units = schedule.units.filter((u) => {
+    if (u.typ !== "ziel") return true; // (falls später Aufgaben-Units kommen)
+    return activeIds.has(normId(u.ziel_id));
+  });
+
+  return schedule;
+}
 
 function regenIfNeeded(force = false) {
-  const schedule = getSchedule();
   const t = todayKey();
+  const schedule = getSchedule();
 
-  // Wenn heute schon ein Plan existiert, aber jetzt keine aktiven Ziele mehr → leeren!
-  if (!force && schedule && schedule.dayKey === t) {
-    const activeGoals = getActiveGoals();
-    if (!activeGoals.length) {
-      setSchedule({
-        dayKey: t,
-        createdAt: nowISO(),
-        lastPushAtGoals: null,
-        units: []
-      });
-    }
+  const { active, activeIds } = getActiveGoals();
+  const goalsHash = computeGoalsHash(active);
+  const mode = state.settings.dayMode;
+
+  // Wenn keine aktiven Ziele: schedule für heute leer halten
+  if (!active.length) {
+    const empty = {
+      dayKey: t,
+      createdAt: nowISO(),
+      lastPushAtGoals: schedule?.lastPushAtGoals || null,
+      goalsHash,
+      dayMode: mode,
+      units: [],
+    };
+    setSchedule(empty);
     return;
   }
 
-  // Neu generieren (oder forced)
-  const units = generateGoalUnitsForToday();
-  const newSchedule = {
-    dayKey: t,
-    createdAt: nowISO(),
-    lastPushAtGoals: schedule?.lastPushAtGoals || null,
-    units,
-  };
-  setSchedule(newSchedule);
+  // Wenn Schedule nicht für heute ist -> neu bauen
+  if (!schedule || schedule.dayKey !== t) {
+    const units = generateGoalUnitsForToday(active);
+    setSchedule({
+      dayKey: t,
+      createdAt: nowISO(),
+      lastPushAtGoals: schedule?.lastPushAtGoals || null,
+      goalsHash,
+      dayMode: mode,
+      units,
+    });
+    return;
+  }
+
+  // Bereinigen (falls Ziele pausiert/gelöscht wurden)
+  const cleaned = cleanupScheduleAgainstActiveGoals({ ...schedule }, activeIds);
+
+  // Wenn relevante Änderungen -> neu generieren
+  const needRegen =
+    force === true ||
+    cleaned.goalsHash !== goalsHash ||
+    cleaned.dayMode !== mode;
+
+  if (needRegen) {
+    const units = generateGoalUnitsForToday(active);
+    setSchedule({
+      dayKey: t,
+      createdAt: nowISO(),
+      lastPushAtGoals: schedule?.lastPushAtGoals || null,
+      goalsHash,
+      dayMode: mode,
+      units,
+    });
+    return;
+  }
+
+  // Falls nur Cleanup nötig war (ohne Neuplanung)
+  if (JSON.stringify(cleaned.units) !== JSON.stringify(schedule.units)) {
+    cleaned.goalsHash = goalsHash;
+    cleaned.dayMode = mode;
+    setSchedule(cleaned);
+  }
 }
 
 /* ---------- Push (ntfy) ---------- */
 
 async function sendNtfy(topic, token, message, title) {
   if (!topic) return false;
+
   const headers = {
     "Content-Type": "text/plain; charset=utf-8",
-    "Title": title || "Glam Trainer",
-    "Priority": "default",
-    "Tags": "bell",
+    Title: title || "Glam Trainer",
+    Priority: "default",
+    Tags: "bell",
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -451,18 +556,24 @@ async function sendNtfy(topic, token, message, title) {
 function canSendPush(lastISO, minGapMinutes) {
   if (!lastISO) return true;
   const last = new Date(lastISO).getTime();
-  return (Date.now() - last) >= minGapMinutes * 60 * 1000;
+  return Date.now() - last >= minGapMinutes * 60 * 1000;
 }
 
 async function maybeDispatchPushes() {
+  regenIfNeeded(false);
+
   const schedule = getSchedule();
   if (!schedule || schedule.dayKey !== todayKey()) return;
+
+  const { activeIds } = getActiveGoals();
+  cleanupScheduleAgainstActiveGoals(schedule, activeIds);
+  setSchedule(schedule);
 
   const settings = state.settings;
   const now = new Date();
 
-  const due = (schedule.units || []).filter(u =>
-    u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) <= now
+  const due = schedule.units.filter(
+    (u) => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) <= now
   );
   if (!due.length) return;
 
@@ -474,7 +585,7 @@ async function maybeDispatchPushes() {
   const lines = [];
   lines.push(`Trainingseinheiten fällig: ${due.length}`);
   lines.push("");
-  show.forEach(u => lines.push(`• ${u.ziel_name} – Stufe ${u.stufe}`));
+  show.forEach((u) => lines.push(`• ${u.ziel_name} – Stufe ${u.stufe}`));
   if (more > 0) lines.push(`… +${more} weitere`);
   lines.push("");
   lines.push("Öffne die App.");
@@ -501,7 +612,7 @@ function completeUnit(unitId, result) {
   const schedule = getSchedule();
   if (!schedule) return;
 
-  const idx = (schedule.units || []).findIndex(u => u.id === unitId);
+  const idx = schedule.units.findIndex((u) => u.id === unitId);
   if (idx < 0) return;
 
   const u = schedule.units[idx];
@@ -526,20 +637,22 @@ function completeUnit(unitId, result) {
   });
 
   if (u.typ === "ziel") applyProgression(u.ziel_id);
+
+  // Nach Abschluss: Schedule bereinigen/neu planen falls nötig
+  regenIfNeeded(false);
 }
 
 function applyProgression(goalId) {
-  // - Rück: 2x hintereinander abgebrochen ODER 3x abgebrochen in letzten 7
-  // - Vor: >=5 erledigt auf aktueller Stufe UND Punkte>=6 (leicht=2, okay=1, schwer=0)
   const gid = normId(goalId);
-  const logs = getLog().filter(e => e.typ === "ziel" && normId(e.ziel_id) === gid);
+  const logs = getLog().filter((e) => e.typ === "ziel" && normId(e.ziel_id) === gid);
 
   const last2 = logs.slice(0, 2);
-  const consecAbort = last2.length === 2 && last2.every(x => x.status === "abgebrochen");
-  const last7 = logs.slice(0, 7);
-  const aborts = last7.filter(x => x.status === "abgebrochen").length;
+  const consecAbort = last2.length === 2 && last2.every((x) => x.status === "abgebrochen");
 
-  const idx = (state.goalsData || []).findIndex(g => normId(g.ziel_id || g.id || "") === gid);
+  const last7 = logs.slice(0, 7);
+  const aborts = last7.filter((x) => x.status === "abgebrochen").length;
+
+  const idx = (state.goalsData || []).findIndex((g) => normId(g.ziel_id || g.id || "") === gid);
   if (idx < 0) return;
 
   const gRaw = state.goalsData[idx];
@@ -553,8 +666,9 @@ function applyProgression(goalId) {
   if (consecAbort || aborts >= 3) {
     newStufe = Math.max(1, cur - 1);
   } else {
-    const onLevel = logs.filter(e => Number(e.stufe) === cur);
-    const success = onLevel.filter(e => e.status === "erledigt");
+    const onLevel = logs.filter((e) => Number(e.stufe) === cur);
+    const success = onLevel.filter((e) => e.status === "erledigt");
+
     if (success.length >= 5) {
       let points = 0;
       for (const s of success) {
@@ -570,14 +684,13 @@ function applyProgression(goalId) {
     state.goalsData[idx] = gRaw;
     saveJSON(STORAGE.goals, state.goalsData);
     toast(newStufe > cur ? "Nächste Stufe freigeschaltet." : "Eine Stufe zurück (sanft).");
-    regenIfNeeded(true);
   }
 }
 
 /* ---------- UI helpers ---------- */
 
 function setActiveNav(route) {
-  document.querySelectorAll(".navbtn").forEach(b => {
+  document.querySelectorAll(".navbtn").forEach((b) => {
     const r = b.getAttribute("data-route");
     b.classList.toggle("active", route.startsWith(r));
   });
@@ -591,7 +704,7 @@ function h(tag, attrs = {}, children = []) {
     else if (k === "html") el.innerHTML = v;
     else el.setAttribute(k, v);
   }
-  (children || []).forEach(c => {
+  (children || []).forEach((c) => {
     if (c === null || c === undefined) return;
     if (typeof c === "string") el.appendChild(document.createTextNode(c));
     else el.appendChild(c);
@@ -602,7 +715,7 @@ function h(tag, attrs = {}, children = []) {
 function sectionTitle(icon, title, rightEl) {
   return h("div", { class: "section-title" }, [
     h("h2", {}, [`${icon} ${title}`]),
-    h("div", { class: "right" }, rightEl ? [rightEl] : [])
+    h("div", { class: "right" }, rightEl ? [rightEl] : []),
   ]);
 }
 
@@ -611,10 +724,10 @@ function chip(label, active, onClick) {
 }
 
 function openModal(contentEl) {
-  const backdrop = h("div", { class: "modal-backdrop" }, [
-    h("div", { class: "modal" }, [contentEl])
-  ]);
-  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+  const backdrop = h("div", { class: "modal-backdrop" }, [h("div", { class: "modal" }, [contentEl])]);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) backdrop.remove();
+  });
   document.body.appendChild(backdrop);
   return () => backdrop.remove();
 }
@@ -623,36 +736,36 @@ function openModal(contentEl) {
 
 function unitDetailModal(unit) {
   const schedule = getSchedule();
-  const u = schedule?.units?.find(x => x.id === unit.id) || unit;
+  const u = schedule?.units?.find((x) => x.id === unit.id) || unit;
 
   let exercise = null;
   if (u.typ === "ziel") exercise = pickExerciseForGoal(u.ziel_id, u.stufe);
 
-  const title = u.typ === "ziel" ? "🎯 Trainingseinheit" : "🧩 Aufgabe";
-  const main = (u.typ === "ziel")
-    ? `${u.ziel_name} – Stufe ${u.stufe}\n\n${exercise?.titel ? ("Übung: " + exercise.titel) : "Keine Übung in goal_uebungen.csv gefunden."}`
-    : (u.title || u.aufgabe || "");
+  const title = u.typ === "ziel" ? `🎯 Trainingseinheit` : `🧩 Aufgabe`;
+  const main =
+    u.typ === "ziel"
+      ? `${u.ziel_name} – Stufe ${u.stufe}\n\n${
+          exercise?.titel ? "Übung: " + exercise.titel : "Keine Übung in goal_uebungen.csv gefunden."
+        }`
+      : u.title || u.aufgabe || "";
 
   const closeBtn = h("button", { class: "modal-close", type: "button" }, ["✕"]);
-  const header = h("div", { class: "modal-header" }, [
-    h("div", { class: "modal-title" }, [title]),
-    closeBtn
-  ]);
+  const header = h("div", { class: "modal-header" }, [h("div", { class: "modal-title" }, [title]), closeBtn]);
 
   const statusRow = h("div", { class: "row" }, [
     h("button", { class: "btn secondary", type: "button", id: "btnDone" }, ["Geschafft"]),
-    h("button", { class: "btn secondary", type: "button", id: "btnAbort" }, ["Abgebrochen"])
+    h("button", { class: "btn secondary", type: "button", id: "btnAbort" }, ["Abgebrochen"]),
   ]);
 
   const feedbackRow = h("div", { class: "row", style: "margin-top:8px" }, [
     h("button", { class: "btn secondary", type: "button", id: "fb1" }, ["leicht"]),
     h("button", { class: "btn secondary", type: "button", id: "fb2" }, ["okay"]),
-    h("button", { class: "btn secondary", type: "button", id: "fb3" }, ["schwer"])
+    h("button", { class: "btn secondary", type: "button", id: "fb3" }, ["schwer"]),
   ]);
 
   const gernSel = h("select", { class: "select", id: "gernSel" }, [
     h("option", { value: "" }, ["Gern gemacht? (optional)"]),
-    ...[1, 2, 3, 4, 5].map(n => h("option", { value: String(n) }, [String(n)]))
+    ...[1, 2, 3, 4, 5].map((n) => h("option", { value: String(n) }, [String(n)])),
   ]);
 
   const note = h("textarea", { class: "textarea", id: "note", placeholder: "Notiz (optional)" }, []);
@@ -674,7 +787,7 @@ function unitDetailModal(unit) {
     feedbackRow,
     gernSel,
     note,
-    footer
+    footer,
   ]);
 
   const close = openModal(body);
@@ -685,25 +798,39 @@ function unitDetailModal(unit) {
   let rueck = null;
 
   function setBtnActive(btn) {
-    [body.querySelector("#btnDone"), body.querySelector("#btnAbort")].forEach(b => b.classList.remove("active"));
+    [body.querySelector("#btnDone"), body.querySelector("#btnAbort")].forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
   }
-
   function setFbActive(btn) {
-    [body.querySelector("#fb1"), body.querySelector("#fb2"), body.querySelector("#fb3")].forEach(b => b.classList.remove("active"));
+    [body.querySelector("#fb1"), body.querySelector("#fb2"), body.querySelector("#fb3")].forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
   }
 
-  body.querySelector("#btnDone").onclick = () => { chosenStatus = "erledigt"; setBtnActive(body.querySelector("#btnDone")); };
-  body.querySelector("#btnAbort").onclick = () => { chosenStatus = "abgebrochen"; setBtnActive(body.querySelector("#btnAbort")); };
+  body.querySelector("#btnDone").onclick = () => {
+    chosenStatus = "erledigt";
+    setBtnActive(body.querySelector("#btnDone"));
+  };
+  body.querySelector("#btnAbort").onclick = () => {
+    chosenStatus = "abgebrochen";
+    setBtnActive(body.querySelector("#btnAbort"));
+  };
 
-  body.querySelector("#fb1").onclick = () => { rueck = "leicht"; setFbActive(body.querySelector("#fb1")); };
-  body.querySelector("#fb2").onclick = () => { rueck = "okay"; setFbActive(body.querySelector("#fb2")); };
-  body.querySelector("#fb3").onclick = () => { rueck = "schwer"; setFbActive(body.querySelector("#fb3")); };
+  body.querySelector("#fb1").onclick = () => {
+    rueck = "leicht";
+    setFbActive(body.querySelector("#fb1"));
+  };
+  body.querySelector("#fb2").onclick = () => {
+    rueck = "okay";
+    setFbActive(body.querySelector("#fb2"));
+  };
+  body.querySelector("#fb3").onclick = () => {
+    rueck = "schwer";
+    setFbActive(body.querySelector("#fb3"));
+  };
 
   btnSave.onclick = () => {
-    if (!chosenStatus) { toast("Bitte: Geschafft oder Abgebrochen wählen."); return; }
-    if (u.typ === "ziel" && !rueck) { toast("Bitte Rückmeldung wählen (leicht/okay/schwer)."); return; }
+    if (!chosenStatus) return toast("Bitte: Geschafft oder Abgebrochen wählen.");
+    if (u.typ === "ziel" && !rueck) return toast("Bitte Rückmeldung wählen (leicht/okay/schwer).");
 
     completeUnit(u.id, {
       status: chosenStatus,
@@ -718,12 +845,12 @@ function unitDetailModal(unit) {
   };
 
   btnDelete.onclick = () => {
-    const schedule2 = getSchedule();
-    if (!schedule2) return;
-    const idx = (schedule2.units || []).findIndex(x => x.id === u.id);
+    const schedule = getSchedule();
+    if (!schedule) return;
+    const idx = schedule.units.findIndex((x) => x.id === u.id);
     if (idx >= 0) {
-      schedule2.units.splice(idx, 1);
-      setSchedule(schedule2);
+      schedule.units.splice(idx, 1);
+      setSchedule(schedule);
       toast("Gelöscht.");
       close();
       render();
@@ -736,14 +863,8 @@ function unitDetailModal(unit) {
 function listItemCard(unit) {
   const badgeClass = unit.typ === "ziel" ? "badge goal" : "badge task";
   const badgeIcon = unit.typ === "ziel" ? "🎯" : "🧩";
-
-  const title = unit.typ === "ziel"
-    ? `${unit.ziel_name} – Stufe ${unit.stufe}`
-    : `${unit.title || unit.aufgabe || "Aufgabe"}`;
-
-  const sub = unit.typ === "ziel"
-    ? "Übung: (wird beim Öffnen gewählt)"
-    : (unit.rubrik ? `Rubrik: ${unit.rubrik}` : "");
+  const title = unit.typ === "ziel" ? `${unit.ziel_name} – Stufe ${unit.stufe}` : `${unit.title || unit.aufgabe || "Aufgabe"}`;
+  const sub = unit.typ === "ziel" ? "Übung: (wird beim Öffnen gewählt)" : unit.rubrik ? `Rubrik: ${unit.rubrik}` : "";
 
   return h("div", { class: "item" }, [
     h("div", { class: badgeClass }, [badgeIcon]),
@@ -751,10 +872,10 @@ function listItemCard(unit) {
       h("div", { class: "item-title" }, [title]),
       h("div", { class: "item-sub" }, [sub]),
       h("div", { class: "row", style: "margin-top:10px; gap:10px" }, [
-        h("button", { class: "btn secondary", type: "button", onclick: () => unitDetailModal(unit) }, ["Öffnen"])
-      ])
+        h("button", { class: "btn secondary", type: "button", onclick: () => unitDetailModal(unit) }, ["Öffnen"]),
+      ]),
     ]),
-    h("div", { class: "time" }, [unit.plannedLabel || ""])
+    h("div", { class: "time" }, [unit.plannedLabel || ""]),
   ]);
 }
 
@@ -764,19 +885,20 @@ function moduleTile(icon, title, lines, btnText, onClick) {
       h("div", { class: "badge task", style: "width:38px;height:38px" }, [icon]),
       h("div", { style: "flex:1" }, [
         h("div", { style: "font-weight:900;font-size:16px" }, [title]),
-        h("div", { class: "small", style: "margin-top:6px;white-space:pre-line" }, [lines])
-      ])
+        h("div", { class: "small", style: "margin-top:6px;white-space:pre-line" }, [lines]),
+      ]),
     ]),
     h("div", { class: "hr" }, []),
-    h("button", { class: "btn secondary", type: "button", onclick: onClick }, [btnText])
+    h("button", { class: "btn secondary", type: "button", onclick: onClick }, [btnText]),
   ]);
 }
 
 function goalsSummaryText() {
-  const goals = getActiveGoals();
-  if (!goals.length) return "Aktiv: 0\nKeine aktiven Ziele.";
-  const lines = goals.slice(0, 3).map(g => `${g.ziel_name} – Stufe ${g.aktuelle_stufe}/${g.max_stufe}`);
-  return `Aktiv: ${goals.length}\n` + lines.join("\n");
+  const { active } = getActiveGoals();
+  if (!active.length) return "Aktiv: 0\nKeine aktiven Ziele.";
+
+  const lines = active.slice(0, 3).map((g) => `${g.ziel_name} – Stufe ${g.aktuelle_stufe}/${g.max_stufe}`);
+  return `Aktiv: ${active.length}\n` + lines.join("\n");
 }
 
 function tasksSummaryText() {
@@ -791,20 +913,34 @@ function renderHome() {
   const units = schedule?.units || [];
   const now = new Date();
 
-  const due = units.filter(u => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) <= now);
-  const planned = units.filter(u => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) > now);
+  const { activeIds } = getActiveGoals();
+
+  // NUR aktive Ziele auf Home anzeigen (damit "Geister" nie sichtbar werden)
+  const unitsActiveOnly = units.filter((u) => u.typ !== "ziel" || activeIds.has(normId(u.ziel_id)));
+
+  const due = unitsActiveOnly.filter((u) => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) <= now);
+  const planned = unitsActiveOnly.filter((u) => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) > now);
 
   const filtered = (arr) => {
     if (state.filter === "all") return arr;
-    if (state.filter === "goals") return arr.filter(x => x.typ === "ziel");
-    if (state.filter === "tasks") return arr.filter(x => x.typ === "aufgabe");
+    if (state.filter === "goals") return arr.filter((x) => x.typ === "ziel");
+    if (state.filter === "tasks") return arr.filter((x) => x.typ === "aufgabe");
     return arr;
   };
 
   const chips = h("div", { class: "chips" }, [
-    chip("Alle", state.filter === "all", () => { state.filter = "all"; render(); }),
-    chip("🎯 Ziele", state.filter === "goals", () => { state.filter = "goals"; render(); }),
-    chip("🧩 Aufgaben", state.filter === "tasks", () => { state.filter = "tasks"; render(); }),
+    chip("Alle", state.filter === "all", () => {
+      state.filter = "all";
+      render();
+    }),
+    chip("🎯 Ziele", state.filter === "goals", () => {
+      state.filter = "goals";
+      render();
+    }),
+    chip("🧩 Aufgaben", state.filter === "tasks", () => {
+      state.filter = "tasks";
+      render();
+    }),
   ]);
 
   const dueList = h("div", { class: "list" }, filtered(due).map(listItemCard));
@@ -813,30 +949,37 @@ function renderHome() {
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
       sectionTitle("🔔", "Jetzt fällig", chips),
-      filtered(due).length ? dueList : h("div", { class: "small" }, ["Keine Einheiten fällig."])
+      filtered(due).length ? dueList : h("div", { class: "small" }, ["Keine Einheiten fällig."]),
     ]),
     h("div", { class: "card" }, [
       sectionTitle("📅", "Heute geplant", null),
-      filtered(planned).length ? plannedList : h("div", { class: "small" }, ["Heute ist nichts weiter geplant."])
+      filtered(planned).length ? plannedList : h("div", { class: "small" }, ["Heute ist nichts weiter geplant."]),
     ]),
     h("div", { class: "grid2" }, [
-      moduleTile("🎯", "Ziele", goalsSummaryText(), "Ziele öffnen", () => { location.hash = "#/goals"; }),
-      moduleTile("🧩", "Aufgaben", tasksSummaryText(), "Aufgaben öffnen", () => { location.hash = "#/tasks"; }),
-    ])
+      moduleTile("🎯", "Ziele", goalsSummaryText(), "Ziele öffnen", () => {
+        location.hash = "#/goals";
+      }),
+      moduleTile("🧩", "Aufgaben", tasksSummaryText(), "Aufgaben öffnen", () => {
+        location.hash = "#/tasks";
+      }),
+    ]),
   ]);
 }
 
 function renderGoals() {
-  const goals = (state.goalsData || []).map(normalizeGoalRow).filter(g => g.ziel_id);
+  const { all } = getActiveGoals();
 
-  const cards = goals.map(g => {
+  const cards = all.map((g) => {
     const { period, min, max, done } = computeGoalQuota(g);
-    const freq = (period === "TAG")
-      ? `Heute: ${done} / ${min}–${max || min}`
-      : `Diese Woche: ${done} / ${min}–${max || min}`;
-    const mod = (g.modus === "ritualisiert")
-      ? `ritualisiert ${g.feste_zeit || "09:00"}`
-      : `flexibel ${g.zeit_von || "14:00"}–${g.zeit_bis || "20:00"}`;
+    const freq =
+      period === "TAG"
+        ? `Heute: ${done} / ${min}–${max || min}`
+        : `Diese Woche: ${done} / ${min}–${max || min}`;
+
+    const mod =
+      g.modus === "ritualisiert"
+        ? `ritualisiert ${g.feste_zeit || "09:00"}`
+        : `flexibel ${g.zeit_von || "14:00"}–${g.zeit_bis || "20:00"}`;
 
     return h("div", { class: "item" }, [
       h("div", { class: "badge goal" }, ["🎯"]),
@@ -844,21 +987,23 @@ function renderGoals() {
         h("div", { class: "item-title" }, [g.ziel_name]),
         h("div", { class: "item-sub" }, [`Stufe ${g.aktuelle_stufe} von ${g.max_stufe}\n${freq}\n${mod}`]),
         h("div", { class: "row", style: "margin-top:10px" }, [
-          h("button", { class: "btn secondary", type: "button", onclick: () => toggleGoalActive(g.ziel_id) }, [g.aktiv ? "Pausieren" : "Aktivieren"])
-        ])
-      ])
+          h("button", { class: "btn secondary", type: "button", onclick: () => toggleGoalActive(g.ziel_id) }, [
+            g.aktiv ? "Pausieren" : "Aktivieren",
+          ]),
+        ]),
+      ]),
     ]);
   });
 
   return h("div", { class: "card" }, [
     sectionTitle("🎯", "Ziele", null),
-    cards.length ? h("div", { class: "list" }, cards) : h("div", { class: "small" }, ["Keine Ziele in goals.csv gefunden."])
+    cards.length ? h("div", { class: "list" }, cards) : h("div", { class: "small" }, ["Keine Ziele in goals.csv gefunden."]),
   ]);
 }
 
 function toggleGoalActive(goalId) {
   const gid = normId(goalId);
-  const idx = (state.goalsData || []).findIndex(g => normId(g.ziel_id || g.id || "") === gid);
+  const idx = (state.goalsData || []).findIndex((g) => normId(g.ziel_id || g.id || "") === gid);
   if (idx < 0) return;
 
   const g = state.goalsData[idx];
@@ -868,22 +1013,22 @@ function toggleGoalActive(goalId) {
   state.goalsData[idx] = g;
   saveJSON(STORAGE.goals, state.goalsData);
 
+  // WICHTIG: sofort neu planen + bereinigen
   regenIfNeeded(true);
   render();
 }
 
 function renderTasks() {
-  const rubriken = [...new Set((state.tasksData || []).map(r => (r.rubrik || "").trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "de"));
+  const rubriken = [...new Set((state.tasksData || []).map((r) => (r.rubrik || "").trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "de")
+  );
 
   const rubSel = h("select", { class: "select", id: "rubSel" }, [
     h("option", { value: "" }, ["Rubrik wählen"]),
-    ...rubriken.map(r => h("option", { value: r }, [r]))
+    ...rubriken.map((r) => h("option", { value: r }, [r])),
   ]);
 
-  const taskSel = h("select", { class: "select", id: "taskSel", disabled: "true" }, [
-    h("option", { value: "" }, ["Aufgabe wählen"])
-  ]);
+  const taskSel = h("select", { class: "select", id: "taskSel", disabled: "true" }, [h("option", { value: "" }, ["Aufgabe wählen"])]);
 
   const out = h("div", { id: "taskOut", style: "white-space:pre-line; font-weight:800; margin-top:10px" }, [""]);
 
@@ -892,12 +1037,12 @@ function renderTasks() {
 
   function getItemsForRubrik(rub) {
     return (state.tasksData || [])
-      .map(r => ({
+      .map((r) => ({
         rubrik: (r.rubrik || "").trim(),
         titel: (r.titel || "").trim(),
-        klasse: (r.klasse || "").trim()
+        klasse: (r.klasse || "").trim(),
       }))
-      .filter(x => x.rubrik === rub && x.titel);
+      .filter((x) => x.rubrik === rub && x.titel);
   }
 
   function setOutFromItem(it) {
@@ -910,7 +1055,10 @@ function renderTasks() {
     taskSel.innerHTML = "";
     taskSel.appendChild(h("option", { value: "" }, ["Aufgabe wählen"]));
 
-    if (!rub) { taskSel.disabled = true; return; }
+    if (!rub) {
+      taskSel.disabled = true;
+      return;
+    }
 
     const items = getItemsForRubrik(rub);
     items.forEach((it, idx) => {
@@ -934,16 +1082,18 @@ function renderTasks() {
 
   btnRandom.onclick = () => {
     const rub = rubSel.value;
-    if (!rub) { toast("Bitte Rubrik wählen."); return; }
+    if (!rub) return toast("Bitte Rubrik wählen.");
     const items = getItemsForRubrik(rub);
-    if (!items.length) { toast("Keine Aufgaben in dieser Rubrik."); return; }
-    setOutFromItem(items[Math.floor(Math.random() * items.length)]);
+    if (!items.length) return toast("Keine Aufgaben in dieser Rubrik.");
+    const it = items[Math.floor(Math.random() * items.length)];
+    setOutFromItem(it);
     toast("Zufallsaufgabe gewählt.");
   };
 
   btnPush.onclick = async () => {
     const payload = out.dataset.payload ? JSON.parse(out.dataset.payload) : null;
-    if (!payload) { toast("Erst eine Aufgabe wählen."); return; }
+    if (!payload) return toast("Erst eine Aufgabe wählen.");
+
     const s = state.settings;
     try {
       await sendNtfy(s.ntfyTasksTopic, s.ntfyToken, `Aufgabe\nRubrik: ${payload.rubrik}\n\n${payload.titel}`, "Aufgabe");
@@ -961,29 +1111,37 @@ function renderTasks() {
     rubSel,
     taskSel,
     h("div", { class: "row" }, [btnRandom, btnPush]),
-    out
+    out,
   ]);
 }
 
 function renderLog() {
   const log = getLog();
-
   const filterCh = h("div", { class: "chips" }, [
-    chip("Alle", state.filter === "all", () => { state.filter = "all"; render(); }),
-    chip("🎯 Ziele", state.filter === "goals", () => { state.filter = "goals"; render(); }),
-    chip("🧩 Aufgaben", state.filter === "tasks", () => { state.filter = "tasks"; render(); }),
+    chip("Alle", state.filter === "all", () => {
+      state.filter = "all";
+      render();
+    }),
+    chip("🎯 Ziele", state.filter === "goals", () => {
+      state.filter = "goals";
+      render();
+    }),
+    chip("🧩 Aufgaben", state.filter === "tasks", () => {
+      state.filter = "tasks";
+      render();
+    }),
   ]);
 
-  const filtered = log.filter(e => {
+  const filtered = log.filter((e) => {
     if (state.filter === "all") return true;
     if (state.filter === "goals") return e.typ === "ziel";
     if (state.filter === "tasks") return e.typ === "aufgabe";
     return true;
   });
 
-  const list = filtered.map(e => {
+  const list = filtered.map((e) => {
     const badge = e.typ === "ziel" ? "🎯" : "🧩";
-    const title = e.typ === "ziel" ? `${e.ziel_name} – Stufe ${e.stufe}` : (e.title || "Aufgabe");
+    const title = e.typ === "ziel" ? `${e.ziel_name} – Stufe ${e.stufe}` : e.title || "Aufgabe";
 
     const subLines = [];
     if (e.typ === "ziel") {
@@ -998,14 +1156,14 @@ function renderLog() {
       h("div", { class: "badge " + (e.typ === "ziel" ? "goal" : "task") }, [badge]),
       h("div", { class: "item-main" }, [
         h("div", { class: "item-title" }, [title]),
-        h("div", { class: "item-sub" }, [`${new Date(e.createdAt).toLocaleString("de-DE")}\n${subLines.join("\n")}`])
-      ])
+        h("div", { class: "item-sub" }, [`${new Date(e.createdAt).toLocaleString("de-DE")}\n${subLines.join("\n")}`]),
+      ]),
     ]);
   });
 
   return h("div", { class: "card" }, [
     sectionTitle("📓", "Log", filterCh),
-    filtered.length ? h("div", { class: "list" }, list) : h("div", { class: "small" }, ["Noch keine Einträge."])
+    filtered.length ? h("div", { class: "list" }, list) : h("div", { class: "small" }, ["Noch keine Einträge."]),
   ]);
 }
 
@@ -1022,6 +1180,7 @@ function renderSettings() {
   const btnSave = h("button", { class: "btn", type: "button" }, ["Speichern"]);
   const btnTestGoals = h("button", { class: "btn secondary", type: "button" }, ["Push testen (Ziele)"]);
   const btnReload = h("button", { class: "btn secondary", type: "button" }, ["CSV neu laden"]);
+  const btnReplan = h("button", { class: "btn secondary", type: "button" }, ["Heute neu planen"]);
 
   btnSave.onclick = () => {
     s.ntfyGoalsTopic = topicGoals.value.trim();
@@ -1055,16 +1214,25 @@ function renderSettings() {
     }
   };
 
+  btnReplan.onclick = () => {
+    regenIfNeeded(true);
+    toast("Neu geplant.");
+    render();
+  };
+
   return h("div", { class: "card" }, [
     sectionTitle("⚙️", "Einstellungen", null),
     h("div", { class: "small" }, ["Hinweis: Push/Erinnerungen funktionieren zuverlässig, solange die App gelegentlich geöffnet ist."]),
     h("div", { class: "hr" }, []),
     h("div", { class: "small" }, ["ntfy Topics"]),
-    topicGoals, topicTasks, token,
+    topicGoals,
+    topicTasks,
+    token,
     h("div", { class: "hr" }, []),
     h("div", { class: "small" }, ["Push Abstand & Bündelung"]),
-    gapGoals, maxBundle,
-    h("div", { class: "row", style: "margin-top:10px" }, [btnSave, btnReload, btnTestGoals]),
+    gapGoals,
+    maxBundle,
+    h("div", { class: "row", style: "margin-top:10px; flex-wrap:wrap" }, [btnSave, btnReload, btnReplan, btnTestGoals]),
   ]);
 }
 
@@ -1093,6 +1261,7 @@ function onRoute() {
 
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
+
   const candidates = ["./sw.js", "./service-worker.js"];
   for (const url of candidates) {
     try {
@@ -1105,21 +1274,20 @@ async function registerServiceWorker() {
 }
 
 async function init() {
-  // Defensive: falls HTML mal anders ist
-  const todayLabel = $("todayLabel");
-  if (todayLabel) {
-    const d = new Date();
-    todayLabel.textContent = d.toLocaleDateString("de-DE", {
-      weekday: "long", day: "2-digit", month: "2-digit", year: "numeric"
+  const d = new Date();
+  if ($("todayLabel")) {
+    $("todayLabel").textContent = d.toLocaleDateString("de-DE", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     });
   }
 
-  const dayModeSel = $("dayMode");
-  if (dayModeSel) dayModeSel.addEventListener("change", (e) => setDayMode(e.target.value));
+  if ($("dayMode")) $("dayMode").addEventListener("change", (e) => setDayMode(e.target.value));
 
-  const btnSync = $("btnSync");
-  if (btnSync) {
-    btnSync.addEventListener("click", async () => {
+  if ($("btnSync")) {
+    $("btnSync").addEventListener("click", async () => {
       try {
         await loadAllCSV();
         toast("CSV geladen.");
@@ -1132,19 +1300,27 @@ async function init() {
     });
   }
 
-  document.querySelectorAll(".navbtn").forEach(b => {
-    b.addEventListener("click", () => { location.hash = b.getAttribute("data-route"); });
+  document.querySelectorAll(".navbtn").forEach((b) => {
+    b.addEventListener("click", () => {
+      location.hash = b.getAttribute("data-route");
+    });
   });
 
   window.addEventListener("hashchange", onRoute);
 
   await registerServiceWorker();
 
-  try { await loadAllCSV(); } catch (e) { console.warn(e); }
+  try {
+    await loadAllCSV();
+  } catch (e) {
+    console.warn(e);
+  }
 
   regenIfNeeded(true);
 
-  setInterval(() => { maybeDispatchPushes(); }, state.settings.tickSeconds * 1000);
+  setInterval(() => {
+    maybeDispatchPushes();
+  }, state.settings.tickSeconds * 1000);
 
   if (!location.hash) location.hash = "#/home";
   onRoute();
