@@ -295,10 +295,15 @@ function ensureMinGap(sortedDates, candidate, minGapMinutes) {
 function generateGoalUnitsForToday() {
   const mode = state.settings.dayMode;
 
-  // NUR ein Ziel-Model verwenden:
+  // Nur aktive Ziele berücksichtigen
   const goals = (state.goalsData || [])
     .map(normalizeGoalRow)
-    .filter(g => g.ziel_id && g.aktiv); // <- WICHTIG: aktiv filtern!
+    .filter(g => g.ziel_id && g.aktiv === true);
+
+  // Wenn keine aktiven Ziele → KEINE Units
+  if (!goals.length) {
+    return [];
+  }
 
   if (mode === "aussetzen") return [];
 
@@ -436,22 +441,23 @@ function mapGoalRow(g){
 }
 /* ---------- Schedule ---------- */
 
-function regenIfNeeded(force = false) {
-  const schedule = getSchedule();
-  const t = todayKey();
-  if (!force && schedule && schedule.dayKey === t) return;
+if (!force && schedule && schedule.dayKey === t) {
+  // Wenn heute keine aktiven Ziele existieren → Schedule leeren
+  const activeGoals = (state.goalsData || [])
+    .map(normalizeGoalRow)
+    .filter(g => g.ziel_id && g.aktiv === true);
 
-  const units = generateGoalUnitsForToday();
+  if (!activeGoals.length) {
+    setSchedule({
+      dayKey: t,
+      createdAt: nowISO(),
+      lastPushAtGoals: null,
+      units: []
+    });
+  }
 
-  const newSchedule = {
-    dayKey: t,
-    createdAt: nowISO(),
-    lastPushAtGoals: schedule?.lastPushAtGoals || null,
-    units,
-  };
-  setSchedule(newSchedule);
+  return;
 }
-
 /* ---------- Push (ntfy) ---------- */
 
 async function sendNtfy(topic, token, message, title) {
