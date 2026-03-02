@@ -296,7 +296,7 @@ function generateGoalUnitsForToday() {
   const mode = state.settings.dayMode;
  const goals = state.goalsData
   .map(mapGoalRow)
-  .filter(g => g.ziel_id);
+  .filter(g => g.ziel_id && g.aktiv);
 
   if (mode === "aussetzen") return [];
 
