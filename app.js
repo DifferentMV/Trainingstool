@@ -810,8 +810,66 @@ function tasksSummaryText() {
   const inbox = getInbox();
   return `Inbox: ${inbox.length}\nOptional: Aufgaben sind lustbasiert.`;
 }
+function renderNav() {
+  // "Vorschaltseite" / Startauswahl
+  return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
+    h("div", { class: "card" }, [
+      sectionTitle("🧭", "Start", null),
+      h("div", { class: "small" }, ["Wähle, welchen Bereich du öffnen willst."]),
+      h("div", { class: "hr" }, []),
 
-function renderHome() {
+      h("div", { class: "grid2" }, [
+        moduleTile("🜂", "Glam Trainer", "Deine Ziele, Trainings, Log & Settings.", "Öffnen", () => {
+          location.hash = "#/home";
+        }),
+        moduleTile("👑", "Anja — Control Panel", "Anjas Bereich (Aufgaben/Kleidung/Kombination).", "Öffnen", () => {
+          location.hash = "#/anja";
+        }),
+      ]),
+    ]),
+  ]);
+}
+
+function renderAnja() {
+  // Minimal-invasive Integration: altes Tool als separate HTML-Datei einbinden
+  // Lege dazu eine Datei "control_panel.html" ins Repo (siehe Punkt 4).
+  const iframe = h("iframe", {
+    src: "control_panel.html",
+    style: "width:100%;height:70vh;border:0;border-radius:16px;background:transparent;",
+    loading: "lazy",
+  });
+
+  return h("div", { class: "card" }, [
+    sectionTitle("👑", "Anja — Control Panel", h("button", {
+      class: "btn secondary",
+      type: "button",
+      onclick: () => { location.hash = "#/nav"; }
+    }, ["Zur Startauswahl"])),
+    h("div", { class: "small" }, [
+      "Hier ist Anjas Tool eingebettet. Später können wir es sauber in das gleiche UI/State-Modell überführen."
+    ]),
+    h("div", { class: "hr" }, []),
+    iframe,
+  ]);
+}
+function render() {
+  const dm = $("dayMode");
+  if (dm) dm.value = state.settings.dayMode;
+
+  setActiveNav(state.route);
+
+  const view = $("view");
+  if (!view) return;
+  view.innerHTML = "";
+
+  if (state.route.startsWith("#/nav")) view.appendChild(renderNav());
+  else if (state.route.startsWith("#/anja")) view.appendChild(renderAnja());
+  else if (state.route.startsWith("#/goals")) view.appendChild(renderGoals());
+  else if (state.route.startsWith("#/tasks")) view.appendChild(renderTasks());
+  else if (state.route.startsWith("#/log")) view.appendChild(renderLog());
+  else if (state.route.startsWith("#/settings")) view.appendChild(renderSettings());
+  else view.appendChild(renderHome());
+} {
   regenIfNeeded(false);
 
   const schedule = getSchedule();
@@ -1178,7 +1236,7 @@ async function init() {
 
   setInterval(() => { maybeDispatchPushes(); }, state.settings.tickSeconds * 1000);
 
-  if (!location.hash) location.hash = "#/home";
+  if (!location.hash) location.hash = "#/nav";
   onRoute();
 }
 
