@@ -67,7 +67,7 @@ function randInt(min, max) {
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
-function normId(v) {
+function normId(x) {
   return String(v || "").trim().toUpperCase();
 }
 function normStr(v) {
@@ -294,39 +294,37 @@ function ensureMinGap(sortedDates, candidate, minGapMinutes) {
 
 function generateGoalUnitsForToday() {
   const mode = state.settings.dayMode;
- const goals = state.goalsData
-  .map(mapGoalRow)
-  .filter(g => g.ziel_id && g.aktiv);
+
+  // NUR ein Ziel-Model verwenden:
+  const goals = (state.goalsData || [])
+    .map(normalizeGoalRow)
+    .filter(g => g.ziel_id && g.aktiv); // <- WICHTIG: aktiv filtern!
 
   if (mode === "aussetzen") return [];
 
   const units = [];
+
   for (const g of goals) {
     const { period, min, max, done } = computeGoalQuota(g);
 
-    // Wenn max gesetzt und schon erreicht -> keine Units mehr
     if (max > 0 && done >= max) continue;
 
     let want = 0;
 
     if (period === "TAG") {
-      // sanft: eher wenig; herausfordernd: eher oben
       const minAdj = mode === "sanft" ? Math.min(min, 1) : min;
 
-      const baseMax = max || min || 1; // wenn max leer, nutze min als Richtwert
+      const baseMax = max || min || 1;
       const maxAdj =
         mode === "sanft"
           ? Math.min(baseMax, 1)
-          : mode === "herausfordernd"
-          ? baseMax
           : baseMax;
 
       const minUse = Math.max(0, minAdj);
       const maxUse = Math.max(minUse, maxAdj);
 
-      want = maxUse === 0 && minUse === 0 ? 0 : randInt(minUse, maxUse);
+      want = (maxUse === 0 && minUse === 0) ? 0 : randInt(minUse, maxUse);
     } else {
-      // WOCHE: minimal nachschieben, wenn min nicht erfüllt
       if (done < min) want = 1;
       else if (max > 0 && done < max) {
         const p = mode === "sanft" ? 0.25 : mode === "herausfordernd" ? 0.55 : 0.4;
@@ -339,8 +337,8 @@ function generateGoalUnitsForToday() {
         id: `goalunit-${g.ziel_id}-${todayKey()}-${i}-${Math.floor(Math.random() * 100000)}`,
         typ: "ziel",
         ziel_id: g.ziel_id,
-        ziel_name: g.ziel_name || g.ziel_id,
-        stufe: clamp(g.stufe, 1, g.max),
+        ziel_name: g.ziel_name,
+        stufe: clamp(g.aktuelle_stufe, 1, g.max_stufe), // <- korrekt
         plannedAt: null,
         plannedLabel: "",
         status: "geplant",
@@ -352,7 +350,7 @@ function generateGoalUnitsForToday() {
   // Zeiten planen
   const plannedDates = [];
   for (const u of units) {
-    const g = goals.find((x) => normId(x.ziel_id) === normId(u.ziel_id));
+    const g = goals.find(x => normId(x.ziel_id) === normId(u.ziel_id));
     if (!g) continue;
 
     let dt = null;
@@ -877,9 +875,9 @@ function renderHome() {
 }
 
 function renderGoals() {
- const goals = state.goalsData
-  .map(mapGoalRow)
-  .filter(g => g.ziel_id);
+  const goals = (state.goalsData || [])
+    .map(normalizeGoalRow)
+    .filter(g => g.ziel_id);
 
   const cards = goals.map((g) => {
     const { period, min, max, done } = computeGoalQuota(g);
