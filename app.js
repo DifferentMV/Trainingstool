@@ -1,8 +1,9 @@
-/* Glam Trainer — V1.2 (Vanilla JS, GitHub Pages)
+/* Glam Trainer — V1.3 (Vanilla JS, GitHub Pages)
    Storage: localStorage. Push: ntfy.sh.
    Fixes / Changes:
-   - normId() Bugfix (x statt v)
-   - Ziele-Aktiv/Paused + aktuelle Stufe als OVERRIDES (CSV Reload überschreibt nicht mehr)
+   - FIX: Syntax/merge error (renderHome block accidentally detached) -> app ran zero -> blank screen
+   - Startauswahl (#/nav) + Anja iFrame (#/anja)
+   - Goals Aktiv/Paused + aktuelle Stufe als OVERRIDES (CSV Reload überschreibt nicht)
    - Schedule wird täglich erzeugt, aber IMMER "bereinigt" (Home zeigt nur aktive Ziele)
    - goal_uebungen.csv Match: normierte ziel_id + stufe
    - Goals-Quota: min/max pro Zeitraum sauber
@@ -153,7 +154,7 @@ const state = {
   // overrides: { [ZIEL_ID]: { aktiv?: boolean, aktuelle_stufe?: number } }
   goalOverrides: loadJSON(STORAGE.goalOverrides, {}),
 
-  route: "#/home",
+  route: "#/nav",
   filter: "all", // all | goals | tasks
 };
 
@@ -192,8 +193,7 @@ async function loadAllCSV() {
   saveJSON(STORAGE.tasks, state.tasksData);
   saveJSON(STORAGE.goals, state.goalsData);
   saveJSON(STORAGE.steps, state.goalsStepsData);
-
-  // wichtig: overrides NICHT überschreiben
+  // overrides NICHT überschreiben
 }
 
 /* ---------- Goals: Normalisierung + Overrides ---------- */
@@ -309,7 +309,6 @@ function ensureMinGap(sortedDates, candidate, minGapMinutes) {
 function generateGoalUnitsForToday(activeGoals) {
   const mode = state.settings.dayMode;
   if (mode === "aussetzen") return [];
-
   if (!activeGoals.length) return [];
 
   const units = [];
@@ -322,17 +321,11 @@ function generateGoalUnitsForToday(activeGoals) {
 
     if (period === "TAG") {
       const minAdj = mode === "sanft" ? Math.min(min, 1) : min;
-
-      // "baseMax": wenn max leer -> min oder 1
       const baseMax = (max > 0) ? max : (min > 0 ? min : 1);
-
-      const maxAdj = (mode === "sanft")
-        ? Math.min(baseMax, 1)
-        : (mode === "herausfordernd" ? baseMax : baseMax);
+      const maxAdj = (mode === "sanft") ? Math.min(baseMax, 1) : baseMax;
 
       const minUse = Math.max(0, minAdj);
       const maxUse = Math.max(minUse, maxAdj);
-
       want = (maxUse === 0 && minUse === 0) ? 0 : randInt(minUse, maxUse);
     } else {
       if (done < min) want = 1;
@@ -388,19 +381,14 @@ function generateGoalUnitsForToday(activeGoals) {
 function cleanScheduleUnits(schedule, activeGoalIdsSet) {
   if (!schedule?.units?.length) return schedule;
 
-  const before = schedule.units.length;
   schedule.units = schedule.units.filter(u => {
     if (u.typ !== "ziel") return true;
     return activeGoalIdsSet.has(normId(u.ziel_id));
   });
 
-  // optional: wenn gar keine aktiven Ziele -> alles raus (auch alte Ziele)
   if (activeGoalIdsSet.size === 0) {
     schedule.units = schedule.units.filter(u => u.typ !== "ziel");
   }
-
-  const after = schedule.units.length;
-  schedule._cleaned = (before !== after);
   return schedule;
 }
 
@@ -411,19 +399,18 @@ function regenIfNeeded(force = false) {
 
   let schedule = getSchedule();
 
-  // 1) Wenn schedule für heute existiert: IMMER bereinigen
+  // wenn schedule für heute existiert: IMMER bereinigen
   if (schedule && schedule.dayKey === t) {
+    const before = (schedule.units || []).length;
     schedule = cleanScheduleUnits(schedule, activeIds);
-    if (schedule._cleaned) {
-      delete schedule._cleaned;
-      setSchedule(schedule);
-    }
+    const after = (schedule.units || []).length;
 
-    // wenn nicht force -> nichts neu würfeln
+    if (before !== after) setSchedule(schedule);
+
     if (!force) return;
   }
 
-  // 2) Neu erstellen (force oder neuer Tag oder kein schedule)
+  // neu erstellen
   const units = generateGoalUnitsForToday(activeGoals);
 
   const newSchedule = {
@@ -801,7 +788,6 @@ function moduleTile(icon, title, lines, btnText, onClick) {
 function goalsSummaryText() {
   const goals = getGoalsNormalized().filter(g => g.aktiv);
   if (!goals.length) return "Aktiv: 0\nKeine aktiven Ziele.";
-
   const lines = goals.slice(0, 3).map(g => `${g.ziel_name} – Stufe ${g.aktuelle_stufe}/${g.max_stufe}`);
   return `Aktiv: ${goals.length}\n` + lines.join("\n");
 }
@@ -810,16 +796,17 @@ function tasksSummaryText() {
   const inbox = getInbox();
   return `Inbox: ${inbox.length}\nOptional: Aufgaben sind lustbasiert.`;
 }
+
+/* ---------- Start / Nav ---------- */
+
 function renderNav() {
-  // "Vorschaltseite" / Startauswahl
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
       sectionTitle("🧭", "Start", null),
       h("div", { class: "small" }, ["Wähle, welchen Bereich du öffnen willst."]),
       h("div", { class: "hr" }, []),
-
       h("div", { class: "grid2" }, [
-        moduleTile("🜂", "Glam Trainer", "Deine Ziele, Trainings, Log & Settings.", "Öffnen", () => {
+        moduleTile("🔱", "Trainer", "Deine Ziele, Training, Log & Settings.", "Öffnen", () => {
           location.hash = "#/home";
         }),
         moduleTile("👑", "Anja — Control Panel", "Anjas Bereich (Aufgaben/Kleidung/Kombination).", "Öffnen", () => {
@@ -831,8 +818,6 @@ function renderNav() {
 }
 
 function renderAnja() {
-  // Minimal-invasive Integration: altes Tool als separate HTML-Datei einbinden
-  // Lege dazu eine Datei "control_panel.html" ins Repo (siehe Punkt 4).
   const iframe = h("iframe", {
     src: "control_panel.html",
     style: "width:100%;height:70vh;border:0;border-radius:16px;background:transparent;",
@@ -840,11 +825,9 @@ function renderAnja() {
   });
 
   return h("div", { class: "card" }, [
-    sectionTitle("👑", "Anja — Control Panel", h("button", {
-      class: "btn secondary",
-      type: "button",
-      onclick: () => { location.hash = "#/nav"; }
-    }, ["Zur Startauswahl"])),
+    sectionTitle("👑", "Anja — Control Panel",
+      h("button", { class: "btn secondary", type: "button", onclick: () => { location.hash = "#/nav"; } }, ["Zur Startauswahl"])
+    ),
     h("div", { class: "small" }, [
       "Hier ist Anjas Tool eingebettet. Später können wir es sauber in das gleiche UI/State-Modell überführen."
     ]),
@@ -852,24 +835,10 @@ function renderAnja() {
     iframe,
   ]);
 }
-function render() {
-  const dm = $("dayMode");
-  if (dm) dm.value = state.settings.dayMode;
 
-  setActiveNav(state.route);
+/* ---------- Home (Trainer) ---------- */
 
-  const view = $("view");
-  if (!view) return;
-  view.innerHTML = "";
-
-  if (state.route.startsWith("#/nav")) view.appendChild(renderNav());
-  else if (state.route.startsWith("#/anja")) view.appendChild(renderAnja());
-  else if (state.route.startsWith("#/goals")) view.appendChild(renderGoals());
-  else if (state.route.startsWith("#/tasks")) view.appendChild(renderTasks());
-  else if (state.route.startsWith("#/log")) view.appendChild(renderLog());
-  else if (state.route.startsWith("#/settings")) view.appendChild(renderSettings());
-  else view.appendChild(renderHome());
-} {
+function renderHome() {
   regenIfNeeded(false);
 
   const schedule = getSchedule();
@@ -1137,7 +1106,7 @@ function renderSettings() {
     try {
       await loadAllCSV();
       toast("CSV geladen.");
-      regenIfNeeded(true);  // wichtig: nach Reload neu erzeugen + bereinigen
+      regenIfNeeded(true);
       render();
     } catch (e) {
       console.warn(e);
@@ -1170,17 +1139,20 @@ function render() {
   if (!view) return;
   view.innerHTML = "";
 
-  if (state.route.startsWith("#/goals")) view.appendChild(renderGoals());
+  if (state.route.startsWith("#/nav")) view.appendChild(renderNav());
+  else if (state.route.startsWith("#/anja")) view.appendChild(renderAnja());
+  else if (state.route.startsWith("#/home")) view.appendChild(renderHome());
+  else if (state.route.startsWith("#/goals")) view.appendChild(renderGoals());
   else if (state.route.startsWith("#/tasks")) view.appendChild(renderTasks());
   else if (state.route.startsWith("#/log")) view.appendChild(renderLog());
   else if (state.route.startsWith("#/settings")) view.appendChild(renderSettings());
-  else view.appendChild(renderHome());
+  else view.appendChild(renderNav());
 }
 
 /* ---------- Routing + init ---------- */
 
 function onRoute() {
-  state.route = location.hash || "#/home";
+  state.route = location.hash || "#/nav";
   setActiveNav(state.route);
   render();
 }
@@ -1222,7 +1194,9 @@ async function init() {
   });
 
   document.querySelectorAll(".navbtn").forEach(b => {
-    b.addEventListener("click", () => { location.hash = b.getAttribute("data-route"); });
+    b.addEventListener("click", () => {
+      location.hash = b.getAttribute("data-route");
+    });
   });
 
   window.addEventListener("hashchange", onRoute);
@@ -1231,7 +1205,6 @@ async function init() {
 
   try { await loadAllCSV(); } catch (e) { console.warn(e); }
 
-  // erzeugt + bereinigt
   regenIfNeeded(true);
 
   setInterval(() => { maybeDispatchPushes(); }, state.settings.tickSeconds * 1000);
