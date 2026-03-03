@@ -1,8 +1,11 @@
 /* Glam Trainer — V1.3 (Vanilla JS, GitHub Pages)
-   - Fix: Startseite leer (kaputter renderHome-Block repariert)
-   - Startauswahl (#/nav) + Trainer (#/home) sauber getrennt
-   - Anja als iframe (#/anja)
-   - Basis-Statusanzeige in Anja-Seite (zeigt Inbox-Items mit Status)
+   Storage: localStorage. Push: ntfy.sh.
+   Fix:
+   - Syntax-Fehler behoben (Home war leer)
+   - Startauswahl (#/nav) + Anja (#/anja)
+   - Inbox für Anja-Aufgaben (neu/angenommen/erledigt)
+   - Aufgaben aus Control Panel erscheinen in Inbox + können angenommen werden
+   - Annahme erzeugt bei dir eine Aufgabe (als Unit) -> sichtbar in Home
 */
 
 const STORAGE = {
@@ -27,12 +30,13 @@ const DEFAULT_SETTINGS = {
   ntfyReportTopic: "",
   ntfyToken: "",
 
-  tickSeconds: 20,
+  tickSeconds: 20, // Push-Dispatch im offenen Tab
 };
 
 const $ = (id) => document.getElementById(id);
 
 /* ---------- Utils ---------- */
+
 function nowISO() { return new Date().toISOString(); }
 
 function todayKey(d = new Date()) {
@@ -58,6 +62,7 @@ function randInt(min, max) {
 }
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
 function normId(x) { return String(x || "").trim().toUpperCase(); }
 function normStr(x) { return String(x || "").trim(); }
 
@@ -106,6 +111,7 @@ async function fetchText(url) {
 }
 
 function parseCSV(text) {
+  // simple CSV/; parser (private use; no quoted separators)
   const cleaned = String(text || "").replace(/^\uFEFF/, "");
   const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length);
   if (!lines.length) return [];
@@ -135,15 +141,19 @@ function getField(row, aliases, fallback = "") {
 }
 
 /* ---------- State ---------- */
+
 const state = {
   settings: loadJSON(STORAGE.settings, DEFAULT_SETTINGS),
+
   tasksData: loadJSON(STORAGE.tasks, []),
-  goalsData: loadJSON(STORAGE.goals, []),
+  goalsData: loadJSON(STORAGE.goals, []),           // RAW CSV rows (werden beim Reload ersetzt)
   goalsStepsData: loadJSON(STORAGE.steps, []),
+
+  // overrides: { [ZIEL_ID]: { aktiv?: boolean, aktuelle_stufe?: number } }
   goalOverrides: loadJSON(STORAGE.goalOverrides, {}),
 
   route: "#/nav",
-  filter: "all",
+  filter: "all", // all | goals | tasks
 };
 
 function persistSettings() { saveJSON(STORAGE.settings, state.settings); }
@@ -166,6 +176,7 @@ function setDayMode(mode) {
 }
 
 /* ---------- CSV load ---------- */
+
 async function loadAllCSV() {
   const [tasksTxt, goalsTxt, stepsTxt] = await Promise.all([
     fetchText("tasks.csv").catch(() => ""),
@@ -180,9 +191,12 @@ async function loadAllCSV() {
   saveJSON(STORAGE.tasks, state.tasksData);
   saveJSON(STORAGE.goals, state.goalsData);
   saveJSON(STORAGE.steps, state.goalsStepsData);
+
+  // wichtig: overrides NICHT überschreiben
 }
 
 /* ---------- Goals: Normalisierung + Overrides ---------- */
+
 function normalizeGoalRow(raw) {
   const ziel_id = normId(getField(raw, ["ziel_id", "id", "ziel", "zielid", "zielId"]));
   const ziel_name = normStr(getField(raw, ["ziel_name", "name", "titel", "zielname"], "")) || ziel_id;
@@ -204,9 +218,13 @@ function normalizeGoalRow(raw) {
 
   const gewichtung = parseInt(getField(raw, ["gewichtung", "weight"], "1"), 10) || 1;
 
+  // apply overrides
   const ov = state.goalOverrides[ziel_id] || {};
   const aktiv = (typeof ov.aktiv === "boolean") ? ov.aktiv : aktivCSV;
-  const aktuelle_stufe = (typeof ov.aktuelle_stufe === "number") ? ov.aktuelle_stufe : aktuelle_stufeCSV;
+
+  const aktuelle_stufe = (typeof ov.aktuelle_stufe === "number")
+    ? ov.aktuelle_stufe
+    : aktuelle_stufeCSV;
 
   return {
     ziel_id,
@@ -226,7 +244,9 @@ function normalizeGoalRow(raw) {
 }
 
 function getGoalsNormalized() {
-  return (state.goalsData || []).map(normalizeGoalRow).filter(g => g.ziel_id);
+  return (state.goalsData || [])
+    .map(normalizeGoalRow)
+    .filter(g => g.ziel_id);
 }
 
 function setGoalOverride(goalId, patch) {
@@ -236,6 +256,7 @@ function setGoalOverride(goalId, patch) {
 }
 
 /* ---------- Quota ---------- */
+
 function countGoalDoneThisPeriod(goalId, period) {
   const gid = normId(goalId);
   const log = getLog();
@@ -266,7 +287,8 @@ function computeGoalQuota(goal) {
   return { period, min, max, done };
 }
 
-/* ---------- Schedule generation ---------- */
+/* ---------- Schedule generation (Goals core) ---------- */
+
 function pickRandomTimeBetween(fromHHMM, toHHMM) {
   const from = parseTimeToDateToday(fromHHMM);
   const to = parseTimeToDateToday(toHHMM);
@@ -299,10 +321,14 @@ function generateGoalUnitsForToday(activeGoals) {
     if (period === "TAG") {
       const minAdj = mode === "sanft" ? Math.min(min, 1) : min;
       const baseMax = (max > 0) ? max : (min > 0 ? min : 1);
-      const maxAdj = (mode === "sanft") ? Math.min(baseMax, 1) : baseMax;
+
+      const maxAdj = (mode === "sanft")
+        ? Math.min(baseMax, 1)
+        : baseMax;
 
       const minUse = Math.max(0, minAdj);
       const maxUse = Math.max(minUse, maxAdj);
+
       want = (maxUse === 0 && minUse === 0) ? 0 : randInt(minUse, maxUse);
     } else {
       if (done < min) want = 1;
@@ -327,6 +353,7 @@ function generateGoalUnitsForToday(activeGoals) {
     }
   }
 
+  // Zeiten planen
   const plannedDates = [];
   for (const u of units) {
     const g = activeGoals.find(x => normId(x.ziel_id) === normId(u.ziel_id));
@@ -357,15 +384,20 @@ function generateGoalUnitsForToday(activeGoals) {
 function cleanScheduleUnits(schedule, activeGoalIdsSet) {
   if (!schedule?.units?.length) return schedule;
 
+  const before = schedule.units.length;
+
   schedule.units = schedule.units.filter(u => {
     if (u.typ !== "ziel") return true;
     return activeGoalIdsSet.has(normId(u.ziel_id));
   });
 
+  // optional: wenn gar keine aktiven Ziele -> alle Ziel-Units raus
   if (activeGoalIdsSet.size === 0) {
     schedule.units = schedule.units.filter(u => u.typ !== "ziel");
   }
 
+  const after = schedule.units.length;
+  schedule._cleaned = (before !== after);
   return schedule;
 }
 
@@ -376,12 +408,17 @@ function regenIfNeeded(force = false) {
 
   let schedule = getSchedule();
 
+  // 1) Wenn schedule für heute existiert: IMMER bereinigen
   if (schedule && schedule.dayKey === t) {
     schedule = cleanScheduleUnits(schedule, activeIds);
-    setSchedule(schedule);
+    if (schedule._cleaned) {
+      delete schedule._cleaned;
+      setSchedule(schedule);
+    }
     if (!force) return;
   }
 
+  // 2) Neu erstellen
   const units = generateGoalUnitsForToday(activeGoals);
 
   const newSchedule = {
@@ -394,7 +431,8 @@ function regenIfNeeded(force = false) {
   setSchedule(newSchedule);
 }
 
-/* ---------- Exercises ---------- */
+/* ---------- Goal exercises (goal_uebungen.csv) ---------- */
+
 function pickExerciseForGoal(goalId, stufe) {
   const gid = normId(goalId);
   const lvl = parseInt(stufe || "1", 10) || 1;
@@ -408,10 +446,12 @@ function pickExerciseForGoal(goalId, stufe) {
 
   const list = rows.filter(x => x.ziel_id === gid && x.stufe === lvl);
   if (!list.length) return null;
+
   return list[Math.floor(Math.random() * list.length)];
 }
 
 /* ---------- Push (ntfy) ---------- */
+
 async function sendNtfy(topic, token, message, title) {
   if (!topic) return false;
   const headers = {
@@ -449,10 +489,12 @@ async function maybeDispatchPushes() {
 
   const due = (schedule.units || []).filter(u =>
     u.status === "geplant" &&
+    u.typ === "ziel" &&
     u.plannedAt &&
     new Date(u.plannedAt) <= now
   );
   if (!due.length) return;
+
   if (!canSendPush(schedule.lastPushAtGoals, settings.minGapGoalsMin)) return;
 
   const show = due.slice(0, settings.maxUnitsPerBundle);
@@ -476,7 +518,173 @@ async function maybeDispatchPushes() {
   }
 }
 
+/* ---------- Inbox (Anja-Aufgaben) ---------- */
+
+function addInboxTaskFromAnja(payload) {
+  const inbox = getInbox();
+
+  const title =
+    (payload?.titel && String(payload.titel).trim()) ||
+    (Array.isArray(payload?.lines) ? payload.lines.join(" / ") : "") ||
+    "Neue Aufgabe";
+
+  const item = {
+    id: `inbox-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+    source: "anja",
+    title,
+    lines: Array.isArray(payload?.lines) ? payload.lines : [],
+    meta: payload || {},
+    status: "neu",              // neu | angenommen | erledigt | abgebrochen
+    createdAt: payload?.createdAt || nowISO(),
+    acceptedAt: null,
+    doneAt: null,
+  };
+
+  inbox.unshift(item);
+  setInbox(inbox);
+  return item;
+}
+
+function acceptInboxTask(inboxId) {
+  const inbox = getInbox();
+  const it = inbox.find(x => x.id === inboxId);
+  if (!it) return;
+
+  if (it.status !== "neu") return;
+
+  it.status = "angenommen";
+  it.acceptedAt = nowISO();
+  setInbox(inbox);
+
+  // Als Aufgabe in den Tagesplan übernehmen (sofort fällig)
+  const schedule = getSchedule() || { dayKey: todayKey(), createdAt: nowISO(), lastPushAtGoals: null, units: [] };
+
+  // wenn schedule nicht für heute: neu anfangen
+  if (schedule.dayKey !== todayKey()) {
+    schedule.dayKey = todayKey();
+    schedule.createdAt = nowISO();
+    schedule.units = [];
+  }
+
+  schedule.units = schedule.units || [];
+
+  const dt = new Date();
+
+  schedule.units.unshift({
+    id: `taskunit-${inboxId}-${Date.now()}`,
+    typ: "aufgabe",
+    title: it.title,
+    plannedAt: dt.toISOString(),
+    plannedLabel: "Jetzt",
+    status: "geplant",
+    createdAt: nowISO(),
+    inboxId: inboxId,
+  });
+
+  setSchedule(schedule);
+  toast("Aufgabe angenommen.");
+  render();
+}
+
+/* ---------- Log + completion + progression ---------- */
+
+function addLogEntry(entry) {
+  const log = getLog();
+  log.unshift(entry);
+  setLog(log);
+}
+
+function completeUnit(unitId, result) {
+  const schedule = getSchedule();
+  if (!schedule) return;
+
+  const idx = (schedule.units || []).findIndex(u => u.id === unitId);
+  if (idx < 0) return;
+
+  const u = schedule.units[idx];
+  u.status = result.status; // erledigt | abgebrochen
+  u.doneAt = nowISO();
+  setSchedule(schedule);
+
+  // Inbox-Status mitziehen (wenn Aufgabe aus Inbox kam)
+  if (u.typ === "aufgabe" && u.inboxId) {
+    const inbox = getInbox();
+    const it = inbox.find(x => x.id === u.inboxId);
+    if (it) {
+      it.status = (result.status === "erledigt") ? "erledigt" : "abgebrochen";
+      it.doneAt = nowISO();
+      setInbox(inbox);
+    }
+  }
+
+  addLogEntry({
+    id: `log-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+    typ: u.typ,
+    dayKey: schedule.dayKey,
+    createdAt: nowISO(),
+
+    // Ziele:
+    ziel_id: u.ziel_id || "",
+    ziel_name: u.ziel_name || "",
+    stufe: u.stufe || "",
+    uebung: result.uebungText || "",
+
+    // Aufgaben:
+    title: u.title || "",
+
+    status: result.status,
+    rueckmeldung: result.rueckmeldung || "",
+    gern: result.gern || null,
+    notiz: result.notiz || "",
+    plannedLabel: u.plannedLabel || "",
+  });
+
+  if (u.typ === "ziel") applyProgression(u.ziel_id);
+  render();
+}
+
+function applyProgression(goalId) {
+  const gid = normId(goalId);
+  const logs = getLog().filter(e => e.typ === "ziel" && normId(e.ziel_id) === gid);
+
+  const last2 = logs.slice(0, 2);
+  const consecAbort = last2.length === 2 && last2.every(x => x.status === "abgebrochen");
+
+  const last7 = logs.slice(0, 7);
+  const aborts = last7.filter(x => x.status === "abgebrochen").length;
+
+  const goal = getGoalsNormalized().find(g => normId(g.ziel_id) === gid);
+  if (!goal) return;
+
+  const cur = goal.aktuelle_stufe;
+  const maxStufe = goal.max_stufe;
+
+  let newStufe = cur;
+
+  if (consecAbort || aborts >= 3) {
+    newStufe = Math.max(1, cur - 1);
+  } else {
+    const onLevel = logs.filter(e => Number(e.stufe) === cur);
+    const success = onLevel.filter(e => e.status === "erledigt");
+    if (success.length >= 5) {
+      let points = 0;
+      for (const s of success) {
+        if (s.rueckmeldung === "leicht") points += 2;
+        else if (s.rueckmeldung === "okay") points += 1;
+      }
+      if (points >= 6) newStufe = Math.min(maxStufe, cur + 1);
+    }
+  }
+
+  if (newStufe !== cur) {
+    setGoalOverride(gid, { aktuelle_stufe: newStufe });
+    toast(newStufe > cur ? "Nächste Stufe freigeschaltet." : "Eine Stufe zurück (sanft).");
+    regenIfNeeded(true);
+  }
+}
+
 /* ---------- UI helpers ---------- */
+
 function setActiveNav(route) {
   document.querySelectorAll(".navbtn").forEach(b => {
     const r = b.getAttribute("data-route");
@@ -521,6 +729,7 @@ function openModal(contentEl) {
 }
 
 /* ---------- Unit detail modal ---------- */
+
 function unitDetailModal(unit) {
   const schedule = getSchedule();
   const u = schedule?.units?.find(x => x.id === unit.id) || unit;
@@ -531,7 +740,7 @@ function unitDetailModal(unit) {
   const title = u.typ === "ziel" ? `🎯 Trainingseinheit` : `🧩 Aufgabe`;
   const main = u.typ === "ziel"
     ? `${u.ziel_name} – Stufe ${u.stufe}\n\n${exercise?.titel ? "Übung: " + exercise.titel : "Keine Übung in goal_uebungen.csv gefunden."}`
-    : (u.title || u.aufgabe || "");
+    : (u.title || u.aufgabe || "Aufgabe");
 
   const closeBtn = h("button", { class: "modal-close", type: "button" }, ["✕"]);
   const header = h("div", { class: "modal-header" }, [
@@ -558,9 +767,10 @@ function unitDetailModal(unit) {
   const note = h("textarea", { class: "textarea", id: "note", placeholder: "Notiz (optional)" }, []);
 
   const btnSave = h("button", { class: "btn", type: "button" }, ["Speichern"]);
+  const btnDelete = h("button", { class: "btn danger", type: "button" }, ["Eintrag löschen"]);
   const btnClose = h("button", { class: "btn secondary", type: "button" }, ["Zurück"]);
 
-  const footer = h("div", { class: "row", style: "margin-top:10px" }, [btnSave, btnClose]);
+  const footer = h("div", { class: "row", style: "margin-top:10px" }, [btnSave, btnClose, btnDelete]);
 
   const body = h("div", {}, [
     header,
@@ -568,10 +778,20 @@ function unitDetailModal(unit) {
     h("div", { class: "small" }, [u.plannedLabel ? `Geplant: ${u.plannedLabel}` : ""]),
     h("div", { style: "white-space:pre-line; font-size:16px; font-weight:800; margin-top:8px" }, [main]),
     h("div", { class: "hr" }, []),
-    h("div", { class: "small" }, ["Rückmeldung (für Ziele empfohlen):"]),
-    statusRow,
-    feedbackRow,
-    gernSel,
+
+    ...(u.typ === "ziel"
+      ? [
+          h("div", { class: "small" }, ["Rückmeldung (für Ziele empfohlen):"]),
+          statusRow,
+          feedbackRow,
+          gernSel,
+        ]
+      : [
+          h("div", { class: "small" }, ["Status:"]),
+          statusRow,
+        ]
+    ),
+
     note,
     footer,
   ]);
@@ -595,56 +815,58 @@ function unitDetailModal(unit) {
   body.querySelector("#btnDone").onclick = () => { chosenStatus = "erledigt"; setBtnActive(body.querySelector("#btnDone")); };
   body.querySelector("#btnAbort").onclick = () => { chosenStatus = "abgebrochen"; setBtnActive(body.querySelector("#btnAbort")); };
 
-  body.querySelector("#fb1").onclick = () => { rueck = "leicht"; setFbActive(body.querySelector("#fb1")); };
-  body.querySelector("#fb2").onclick = () => { rueck = "okay"; setFbActive(body.querySelector("#fb2")); };
-  body.querySelector("#fb3").onclick = () => { rueck = "schwer"; setFbActive(body.querySelector("#fb3")); };
+  const fb1 = body.querySelector("#fb1");
+  const fb2 = body.querySelector("#fb2");
+  const fb3 = body.querySelector("#fb3");
+
+  if (fb1 && fb2 && fb3) {
+    fb1.onclick = () => { rueck = "leicht"; setFbActive(fb1); };
+    fb2.onclick = () => { rueck = "okay"; setFbActive(fb2); };
+    fb3.onclick = () => { rueck = "schwer"; setFbActive(fb3); };
+  }
 
   btnSave.onclick = () => {
     if (!chosenStatus) { toast("Bitte: Geschafft oder Abgebrochen wählen."); return; }
     if (u.typ === "ziel" && !rueck) { toast("Bitte Rückmeldung wählen (leicht/okay/schwer)."); return; }
 
-    const schedule = getSchedule();
-    const idx = (schedule?.units || []).findIndex(x => x.id === u.id);
-    if (idx >= 0) {
-      schedule.units[idx].status = chosenStatus;
-      schedule.units[idx].doneAt = nowISO();
-      setSchedule(schedule);
-    }
-
-    const log = getLog();
-    log.unshift({
-      id: `log-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-      typ: u.typ,
-      dayKey: schedule?.dayKey || todayKey(),
-      createdAt: nowISO(),
-      ziel_id: u.ziel_id,
-      ziel_name: u.ziel_name,
-      stufe: u.stufe,
-      uebung: exercise?.titel || "",
+    completeUnit(u.id, {
       status: chosenStatus,
       rueckmeldung: rueck || "",
-      gern: body.querySelector("#gernSel").value ? parseInt(body.querySelector("#gernSel").value, 10) : null,
+      gern: body.querySelector("#gernSel")?.value ? parseInt(body.querySelector("#gernSel").value, 10) : null,
       notiz: body.querySelector("#note").value.trim(),
-      plannedLabel: u.plannedLabel || "",
+      uebungText: exercise?.titel || "",
     });
-    setLog(log);
 
     close();
-    render();
+  };
+
+  btnDelete.onclick = () => {
+    const schedule = getSchedule();
+    if (!schedule) return;
+    const idx = (schedule.units || []).findIndex(x => x.id === u.id);
+    if (idx >= 0) {
+      schedule.units.splice(idx, 1);
+      setSchedule(schedule);
+      toast("Gelöscht.");
+      close();
+      render();
+    }
   };
 }
 
 /* ---------- Views ---------- */
+
 function listItemCard(unit) {
   const badgeClass = unit.typ === "ziel" ? "badge goal" : "badge task";
   const badgeIcon = unit.typ === "ziel" ? "🎯" : "🧩";
+
   const title = unit.typ === "ziel"
     ? `${unit.ziel_name} – Stufe ${unit.stufe}`
     : `${unit.title || unit.aufgabe || "Aufgabe"}`;
 
   const sub = unit.typ === "ziel"
     ? "Übung: (wird beim Öffnen gewählt)"
-    : (unit.rubrik ? `Rubrik: ${unit.rubrik}` : "");
+    : (unit.inboxId ? "Quelle: Anja (Inbox)" : "");
 
   return h("div", { class: "item" }, [
     h("div", { class: badgeClass }, [badgeIcon]),
@@ -676,74 +898,40 @@ function moduleTile(icon, title, lines, btnText, onClick) {
 function goalsSummaryText() {
   const goals = getGoalsNormalized().filter(g => g.aktiv);
   if (!goals.length) return "Aktiv: 0\nKeine aktiven Ziele.";
+
   const lines = goals.slice(0, 3).map(g => `${g.ziel_name} – Stufe ${g.aktuelle_stufe}/${g.max_stufe}`);
   return `Aktiv: ${goals.length}\n` + lines.join("\n");
 }
 
 function tasksSummaryText() {
   const inbox = getInbox();
-  return `Inbox: ${inbox.length}\nOptional: Aufgaben sind lustbasiert.`;
+  const open = inbox.filter(x => x.status === "neu").length;
+  return `Inbox: ${open}\nAufgaben von Anja (neu) + optionale Aufgaben.`;
 }
 
-/* --- STARTAUSWAHL --- */
+/* ---------- Startauswahl / Nav ---------- */
+
 function renderNav() {
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
       sectionTitle("🧭", "Start", null),
       h("div", { class: "small" }, ["Wähle, welchen Bereich du öffnen willst."]),
       h("div", { class: "hr" }, []),
+
       h("div", { class: "grid2" }, [
-        moduleTile("🔱", "Trainer", "Deine Ziele, Trainings, Log & Settings.", "Öffnen", () => { location.hash = "#/home"; }),
-        moduleTile("👑", "Anja — Control Panel", "Anjas Bereich (Aufgaben/Kleidung/Kombination).", "Öffnen", () => { location.hash = "#/anja"; }),
+        moduleTile("🔱", "Trainer", "Home / Ziele / Aufgaben / Log / Einstellungen", "Öffnen", () => {
+          location.hash = "#/home";
+        }),
+        moduleTile("👑", "Anja — Control Panel", "Aufgaben/Kleidung/Kombination + Status & Inbox", "Öffnen", () => {
+          location.hash = "#/anja";
+        }),
       ]),
     ]),
   ]);
 }
 
-/* --- ANJA --- */
-function renderAnja() {
-  const inbox = getInbox();
-  const open = inbox.filter(x => x.status !== "erledigt" && x.status !== "abgebrochen");
+/* ---------- Home ---------- */
 
-  const statusCard = h("div", { class: "card" }, [
-    sectionTitle("📌", "Status", null),
-    h("div", { class: "small" }, [`Offene Aufgaben: ${open.length}`]),
-    h("div", { class: "hr" }, []),
-    open.length
-      ? h("div", { class: "list" }, open.slice(0, 5).map(t =>
-          h("div", { class: "item" }, [
-            h("div", { class: "badge task" }, ["🧩"]),
-            h("div", { class: "item-main" }, [
-              h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
-              h("div", { class: "item-sub" }, [`Status: ${t.status || "neu"}`]),
-            ]),
-          ])
-        ))
-      : h("div", { class: "small" }, ["Keine offenen Aufgaben."]),
-  ]);
-
-  const iframe = h("iframe", {
-    id: "anjaFrame",
-    src: "control_panel.html",
-    style: "width:100%;height:70vh;border:0;border-radius:16px;background:transparent;",
-    loading: "lazy",
-  });
-
-  return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
-    h("div", { class: "card" }, [
-      sectionTitle("👑", "Anja — Control Panel", h("button", {
-        class: "btn secondary",
-        type: "button",
-        onclick: () => { location.hash = "#/nav"; }
-      }, ["Zur Startauswahl"])),
-      h("div", { class: "small" }, ["Anjas Tool ist eingebettet."]),
-    ]),
-    statusCard,
-    h("div", { class: "card" }, [iframe]),
-  ]);
-}
-
-/* --- HOME (Trainer) --- */
 function renderHome() {
   regenIfNeeded(false);
 
@@ -786,8 +974,11 @@ function renderHome() {
   ]);
 }
 
+/* ---------- Goals ---------- */
+
 function renderGoals() {
   const goals = getGoalsNormalized();
+
   const cards = goals.map(g => {
     const { period, min, max, done } = computeGoalQuota(g);
     const freq = period === "TAG"
@@ -806,12 +997,7 @@ function renderGoals() {
           h("button", {
             class: "btn secondary",
             type: "button",
-            onclick: () => {
-              const gid = normId(g.ziel_id);
-              setGoalOverride(gid, { aktiv: !g.aktiv });
-              regenIfNeeded(true);
-              render();
-            }
+            onclick: () => toggleGoalActive(g.ziel_id)
           }, [g.aktiv ? "Pausieren" : "Aktivieren"]),
         ])
       ])
@@ -821,6 +1007,70 @@ function renderGoals() {
   return h("div", { class: "card" }, [
     sectionTitle("🎯", "Ziele", null),
     cards.length ? h("div", { class: "list" }, cards) : h("div", { class: "small" }, ["Keine Ziele in goals.csv gefunden."])
+  ]);
+}
+
+function toggleGoalActive(goalId) {
+  const gid = normId(goalId);
+  const goal = getGoalsNormalized().find(g => normId(g.ziel_id) === gid);
+  const current = goal ? !!goal.aktiv : false;
+
+  setGoalOverride(gid, { aktiv: !current });
+
+  regenIfNeeded(true);
+  render();
+}
+
+/* ---------- Tasks (inkl. Inbox) ---------- */
+
+function renderInboxList(where) {
+  const inbox = getInbox();
+
+  const open = inbox.filter(x => x.status === "neu");
+  const accepted = inbox.filter(x => x.status === "angenommen");
+
+  const title = where === "anja" ? "Offene Aufgaben (Anja → du)" : "Inbox (von Anja)";
+
+  const headLines = where === "anja"
+    ? `Neu: ${open.length} · Angenommen: ${accepted.length}`
+    : `Neu: ${open.length} · Angenommen: ${accepted.length}`;
+
+  const listItems = open.slice(0, 8).map(it => {
+    return h("div", { class: "item" }, [
+      h("div", { class: "badge task" }, ["🧩"]),
+      h("div", { class: "item-main" }, [
+        h("div", { class: "item-title" }, [it.title]),
+        h("div", { class: "item-sub" }, [`Status: neu`]),
+        h("div", { class: "row", style: "margin-top:10px; gap:10px" }, [
+          h("button", {
+            class: "btn secondary",
+            type: "button",
+            onclick: () => acceptInboxTask(it.id)
+          }, [where === "anja" ? "Bei dir annehmen" : "Annehmen"])
+        ])
+      ]),
+    ]);
+  });
+
+  const acceptedItems = accepted.slice(0, 6).map(it => {
+    return h("div", { class: "item" }, [
+      h("div", { class: "badge task" }, ["✅"]),
+      h("div", { class: "item-main" }, [
+        h("div", { class: "item-title" }, [it.title]),
+        h("div", { class: "item-sub" }, [`Status: angenommen`]),
+      ]),
+    ]);
+  });
+
+  return h("div", { class: "card" }, [
+    sectionTitle("📥", title, null),
+    h("div", { class: "small" }, [headLines]),
+    h("div", { class: "hr" }, []),
+
+    open.length ? h("div", { class: "list" }, listItems) : h("div", { class: "small" }, ["Keine neuen Aufgaben."]),
+    accepted.length ? h("div", { class: "hr" }, []) : null,
+    accepted.length ? h("div", { class: "small" }, ["Angenommen (Auszug):"]) : null,
+    accepted.length ? h("div", { class: "list" }, acceptedItems) : null,
   ]);
 }
 
@@ -910,16 +1160,51 @@ function renderTasks() {
     }
   };
 
-  return h("div", { class: "card" }, [
-    sectionTitle("🧩", "Aufgaben", null),
-    h("div", { class: "small" }, ["Aufgaben sind optional (Lust / Anja). Keine Progression, keine Strafen."]),
-    h("div", { class: "hr" }, []),
-    rubSel,
-    taskSel,
-    h("div", { class: "row" }, [btnRandom, btnPush]),
-    out
+  return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
+    h("div", { class: "card" }, [
+      sectionTitle("🧩", "Aufgaben", null),
+      h("div", { class: "small" }, ["Aufgaben sind optional (Lust / Anja). Keine Progression, keine Strafen."]),
+      h("div", { class: "hr" }, []),
+      rubSel,
+      taskSel,
+      h("div", { class: "row" }, [btnRandom, btnPush]),
+      out
+    ]),
+    renderInboxList("tasks"),
   ]);
 }
+
+/* ---------- Anja ---------- */
+
+function renderAnja() {
+  const iframe = h("iframe", {
+    src: "control_panel.html",
+    style: "width:100%;height:70vh;border:0;border-radius:16px;background:transparent;",
+    loading: "lazy",
+    title: "Anja Control Panel",
+  });
+
+  return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
+    h("div", { class: "card" }, [
+      sectionTitle("👑", "Anja — Control Panel", h("button", {
+        class: "btn secondary",
+        type: "button",
+        onclick: () => { location.hash = "#/nav"; }
+      }, ["Zur Startauswahl"])),
+      h("div", { class: "small" }, [
+        "Anjas Tool ist eingebettet. Neue Aufgaben landen als Inbox-Einträge (neu → annehmen → bei dir in Home)."
+      ]),
+      h("div", { class: "hr" }, []),
+    ]),
+    renderInboxList("anja"),
+    h("div", { class: "card" }, [
+      sectionTitle("🧰", "Control Panel", null),
+      iframe,
+    ])
+  ]);
+}
+
+/* ---------- Log ---------- */
 
 function renderLog() {
   const log = getLog();
@@ -938,7 +1223,9 @@ function renderLog() {
 
   const list = filtered.map(e => {
     const badge = e.typ === "ziel" ? "🎯" : "🧩";
-    const title = e.typ === "ziel" ? `${e.ziel_name} – Stufe ${e.stufe}` : (e.title || "Aufgabe");
+    const title = e.typ === "ziel"
+      ? `${e.ziel_name} – Stufe ${e.stufe}`
+      : (e.title || "Aufgabe");
 
     const subLines = [];
     if (e.typ === "ziel") {
@@ -963,6 +1250,8 @@ function renderLog() {
     filtered.length ? h("div", { class: "list" }, list) : h("div", { class: "small" }, ["Noch keine Einträge."])
   ]);
 }
+
+/* ---------- Settings ---------- */
 
 function renderSettings() {
   const s = state.settings;
@@ -1019,6 +1308,7 @@ function renderSettings() {
 }
 
 /* ---------- Render ---------- */
+
 function render() {
   const dm = $("dayMode");
   if (dm) dm.value = state.settings.dayMode;
@@ -1031,15 +1321,15 @@ function render() {
 
   if (state.route.startsWith("#/nav")) view.appendChild(renderNav());
   else if (state.route.startsWith("#/anja")) view.appendChild(renderAnja());
-  else if (state.route.startsWith("#/home")) view.appendChild(renderHome());
   else if (state.route.startsWith("#/goals")) view.appendChild(renderGoals());
   else if (state.route.startsWith("#/tasks")) view.appendChild(renderTasks());
   else if (state.route.startsWith("#/log")) view.appendChild(renderLog());
   else if (state.route.startsWith("#/settings")) view.appendChild(renderSettings());
-  else view.appendChild(renderNav());
+  else view.appendChild(renderHome());
 }
 
 /* ---------- Routing + init ---------- */
+
 function onRoute() {
   state.route = location.hash || "#/nav";
   setActiveNav(state.route);
@@ -1057,6 +1347,22 @@ async function registerServiceWorker() {
       // try next
     }
   }
+}
+
+/* ---------- Bridge: Nachrichten aus control_panel.html ---------- */
+
+function setupMessageBridge() {
+  window.addEventListener("message", (event) => {
+    const data = event?.data;
+    if (!data || typeof data !== "object") return;
+    if (data.type !== "GT_NEW_TASK") return;
+
+    const item = addInboxTaskFromAnja(data.payload || {});
+    toast("Neue Aufgabe von Anja (Inbox).");
+
+    // Wenn gerade Anja-Seite offen: sofort aktualisieren
+    if (state.route.startsWith("#/anja") || state.route.startsWith("#/tasks")) render();
+  });
 }
 
 async function init() {
@@ -1088,11 +1394,13 @@ async function init() {
 
   window.addEventListener("hashchange", onRoute);
 
+  setupMessageBridge();
   await registerServiceWorker();
 
   try { await loadAllCSV(); } catch (e) { console.warn(e); }
 
   regenIfNeeded(true);
+
   setInterval(() => { maybeDispatchPushes(); }, state.settings.tickSeconds * 1000);
 
   if (!location.hash) location.hash = "#/nav";
