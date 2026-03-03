@@ -1,11 +1,10 @@
 /* Glam Trainer — V1.3 (Vanilla JS, GitHub Pages)
    Storage: localStorage. Push: ntfy.sh.
-
-   Fixes:
-   - Startseite leer: renderHome() war durch Copy/Paste zerstört → hier sauber.
-   - Neue Route: #/nav (Startauswahl) + #/anja (Control Panel iframe)
-   - Anja → App Bridge: postMessage GT_NEW_TASK + ACK zurück (Offen/Angenommen)
-   - Inbox Aufgaben: sichtbar in Aufgaben + annehmbar + ausführbar + Log
+   - Startseite (#/nav) als Vorschaltseite
+   - Anja-Aufgaben persistent (shared localStorage) + Status: offen/angenommen/erledigt/abgebrochen
+   - “Fällig am …” sichtbar, aber ausführbar erst ab Zeitpunkt
+   - Bugfix: renderHome wieder korrekt (kein kaputter Block / keine doppelte render()-Definition)
+   - Service Worker: versucht sw.js und service-worker.js
 */
 
 const STORAGE = {
@@ -15,7 +14,13 @@ const STORAGE = {
   steps: "gt_goal_steps_v1",
   log: "gt_log_v1",
   schedule: "gt_schedule_v1",
-  inbox: "gt_inbox_v2",
+
+  // Inbox für dich (Anja-Aufgaben)
+  inbox: "gt_inbox_v1",
+
+  // Shared Task-Liste (für Parent + iframe Control Panel)
+  anjaTasks: "gt_anja_tasks_v1",
+
   goalOverrides: "gt_goal_overrides_v1",
 };
 
@@ -30,7 +35,7 @@ const DEFAULT_SETTINGS = {
   ntfyReportTopic: "",
   ntfyToken: "",
 
-  tickSeconds: 20,
+  tickSeconds: 20, // Push-Dispatch im offenen Tab
 };
 
 const $ = (id) => document.getElementById(id);
@@ -47,6 +52,12 @@ function todayKey(d = new Date()) {
 
 function pad2(n) { return String(n).padStart(2, "0"); }
 function fmtTime(d) { return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
+
+function fmtDateTimeLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleString("de-DE");
+}
 
 function parseTimeToDateToday(hhmm) {
   const [h, m] = String(hhmm || "").split(":").map(Number);
@@ -111,6 +122,7 @@ async function fetchText(url) {
 }
 
 function parseCSV(text) {
+  // simple CSV/; parser (no quoted separators)
   const cleaned = String(text || "").replace(/^\uFEFF/, "");
   const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length);
   if (!lines.length) return [];
@@ -164,6 +176,9 @@ function setSchedule(x) { saveJSON(STORAGE.schedule, x); }
 function getInbox() { return loadJSON(STORAGE.inbox, []); }
 function setInbox(x) { saveJSON(STORAGE.inbox, x); }
 
+function getAnjaTasks() { return loadJSON(STORAGE.anjaTasks, []); }
+function setAnjaTasks(x) { saveJSON(STORAGE.anjaTasks, x); }
+
 function persistOverrides() { saveJSON(STORAGE.goalOverrides, state.goalOverrides); }
 
 function setDayMode(mode) {
@@ -216,7 +231,10 @@ function normalizeGoalRow(raw) {
 
   const ov = state.goalOverrides[ziel_id] || {};
   const aktiv = (typeof ov.aktiv === "boolean") ? ov.aktiv : aktivCSV;
-  const aktuelle_stufe = (typeof ov.aktuelle_stufe === "number") ? ov.aktuelle_stufe : aktuelle_stufeCSV;
+
+  const aktuelle_stufe = (typeof ov.aktuelle_stufe === "number")
+    ? ov.aktuelle_stufe
+    : aktuelle_stufeCSV;
 
   return {
     ziel_id,
@@ -317,6 +335,7 @@ function generateGoalUnitsForToday(activeGoals) {
 
       const minUse = Math.max(0, minAdj);
       const maxUse = Math.max(minUse, maxAdj);
+
       want = (maxUse === 0 && minUse === 0) ? 0 : randInt(minUse, maxUse);
     } else {
       if (done < min) want = 1;
@@ -341,7 +360,6 @@ function generateGoalUnitsForToday(activeGoals) {
     }
   }
 
-  // Zeiten planen
   const plannedDates = [];
   for (const u of units) {
     const g = activeGoals.find(x => normId(x.ziel_id) === normId(u.ziel_id));
@@ -373,12 +391,7 @@ function cleanScheduleUnits(schedule, activeGoalIdsSet) {
   if (!schedule?.units?.length) return schedule;
 
   const before = schedule.units.length;
-
   schedule.units = schedule.units.filter(u => {
-    // tasks bleiben IMMER
-    if (u.typ === "aufgabe") return true;
-
-    // ziele nur wenn aktiv
     if (u.typ !== "ziel") return true;
     return activeGoalIdsSet.has(normId(u.ziel_id));
   });
@@ -408,10 +421,7 @@ function regenIfNeeded(force = false) {
     if (!force) return;
   }
 
-  const units = [
-    ...(schedule?.units || []).filter(u => u.typ === "aufgabe" && u.status === "geplant"),
-    ...generateGoalUnitsForToday(activeGoals),
-  ];
+  const units = generateGoalUnitsForToday(activeGoals);
 
   const newSchedule = {
     dayKey: t,
@@ -423,7 +433,7 @@ function regenIfNeeded(force = false) {
   setSchedule(newSchedule);
 }
 
-/* ---------- Goal exercises (goal_uebungen.csv) ---------- */
+/* ---------- Goal exercises ---------- */
 
 function pickExerciseForGoal(goalId, stufe) {
   const gid = normId(goalId);
@@ -485,24 +495,22 @@ async function maybeDispatchPushes() {
     new Date(u.plannedAt) <= now
   );
   if (!due.length) return;
+
   if (!canSendPush(schedule.lastPushAtGoals, settings.minGapGoalsMin)) return;
 
   const show = due.slice(0, settings.maxUnitsPerBundle);
   const more = due.length - show.length;
 
   const lines = [];
-  lines.push(`Fällig: ${due.length}`);
+  lines.push(`Trainingseinheiten fällig: ${due.length}`);
   lines.push("");
-  show.forEach(u => {
-    if (u.typ === "ziel") lines.push(`• 🎯 ${u.ziel_name} – Stufe ${u.stufe}`);
-    else lines.push(`• 🧩 ${u.title || "Aufgabe"}`);
-  });
+  show.forEach(u => lines.push(`• ${u.ziel_name} – Stufe ${u.stufe}`));
   if (more > 0) lines.push(`… +${more} weitere`);
   lines.push("");
   lines.push("Öffne die App.");
 
   try {
-    await sendNtfy(settings.ntfyGoalsTopic, settings.ntfyToken, lines.join("\n"), "Glam Trainer: fällig");
+    await sendNtfy(settings.ntfyGoalsTopic, settings.ntfyToken, lines.join("\n"), "Training fällig");
     schedule.lastPushAtGoals = nowISO();
     setSchedule(schedule);
     toast("Push gesendet.");
@@ -536,18 +544,15 @@ function completeUnit(unitId, result) {
     typ: u.typ,
     dayKey: schedule.dayKey,
     createdAt: nowISO(),
-    ziel_id: u.ziel_id || "",
-    ziel_name: u.ziel_name || "",
-    stufe: u.stufe || "",
+    ziel_id: u.ziel_id,
+    ziel_name: u.ziel_name,
+    stufe: u.stufe,
     uebung: result.uebungText || "",
-    title: u.title || "",
     status: result.status,
     rueckmeldung: result.rueckmeldung || "",
     gern: result.gern || null,
     notiz: result.notiz || "",
     plannedLabel: u.plannedLabel || "",
-    dueAt: u.dueAt || "",
-    source: u.source || "",
   });
 
   if (u.typ === "ziel") applyProgression(u.ziel_id);
@@ -594,98 +599,46 @@ function applyProgression(goalId) {
   }
 }
 
-/* ---------- Inbox (Anja Aufgaben) ---------- */
+/* ---------- Anja Tasks (shared storage) ---------- */
 
-function addInboxTaskFromAnja(payload) {
+function upsertAnjaTask(task) {
+  const list = getAnjaTasks();
+  const idx = list.findIndex(t => t.id === task.id);
+  if (idx >= 0) list[idx] = { ...list[idx], ...task };
+  else list.unshift(task);
+  setAnjaTasks(list);
+
+  // Inbox in deiner Sicht (nur wenn neu)
   const inbox = getInbox();
-
-  const id = String(payload?.id || `anja-${Date.now()}-${Math.floor(Math.random() * 10000)}`);
-  const exists = inbox.some(x => x.id === id);
-  if (exists) return { id, status: "neu" };
-
-  const title = String(payload?.titel || payload?.title || "Neue Aufgabe").trim();
-  const note = String(payload?.notiz || payload?.note || "").trim();
-  const dueAt = payload?.dueAt ? String(payload.dueAt) : "";
-
-  inbox.unshift({
-    id,
-    source: "anja",
-    title,
-    note,
-    lines: Array.isArray(payload?.lines) ? payload.lines : [],
-    createdAt: payload?.createdAt ? String(payload.createdAt) : nowISO(),
-    dueAt,
-    status: "neu", // neu | angenommen | erledigt | abgebrochen
-  });
-
-  setInbox(inbox);
-  return { id, status: "neu" };
-}
-
-function setInboxStatus(id, status) {
-  const inbox = getInbox();
-  const x = inbox.find(t => t.id === id);
-  if (!x) return false;
-  x.status = status;
-  setInbox(inbox);
-  return true;
-}
-
-function acceptInboxTask(id) {
-  const inbox = getInbox();
-  const task = inbox.find(t => t.id === id);
-  if (!task) return;
-
-  if (task.status !== "neu") return;
-  task.status = "angenommen";
-  setInbox(inbox);
-
-  // in den heutigen Schedule als Aufgabe übernehmen:
-  let schedule = getSchedule();
-  const tday = todayKey();
-  if (!schedule || schedule.dayKey !== tday) {
-    regenIfNeeded(true);
-    schedule = getSchedule();
+  const exists = inbox.some(x => x.id === task.id);
+  if (!exists) {
+    inbox.unshift({
+      id: task.id,
+      title: task.title,
+      note: task.note || "",
+      dueAt: task.dueAt || "",
+      status: task.status || "offen",
+      createdAt: task.createdAt || nowISO(),
+      source: "anja",
+    });
+    setInbox(inbox);
   }
-
-  const plannedAt = task.dueAt ? new Date(task.dueAt) : new Date();
-  // Wenn fällig in Zukunft: geplantAt = dueAt, sonst: jetzt + 2min
-  const pa = (plannedAt instanceof Date && !isNaN(plannedAt)) ? plannedAt : new Date();
-  const finalAt = (pa.getTime() < Date.now() + 60 * 1000) ? new Date(Date.now() + 2 * 60 * 1000) : pa;
-
-  const unit = {
-    id: `taskunit-${task.id}`,
-    typ: "aufgabe",
-    title: task.title,
-    note: task.note || "",
-    source: "anja",
-    dueAt: task.dueAt || "",
-    plannedAt: finalAt.toISOString(),
-    plannedLabel: fmtTime(finalAt),
-    status: "geplant",
-    createdAt: nowISO(),
-  };
-
-  schedule.units = schedule.units || [];
-  const already = schedule.units.some(u => u.id === unit.id);
-  if (!already) schedule.units.unshift(unit);
-
-  setSchedule(schedule);
-  toast("Aufgabe angenommen.");
-  render();
-
-  // Wenn wir gerade in Anjas Ansicht sind: Status im iframe aktualisieren
-  try {
-    const frame = document.querySelector("iframe[data-anja-frame='1']");
-    frame?.contentWindow?.postMessage({ type: "GT_TASK_STATUS", id: task.id, status: "angenommen" }, "*");
-  } catch {}
 }
 
-function formatDueLabel(dueAtISO) {
-  if (!dueAtISO) return "";
-  const d = new Date(dueAtISO);
-  if (isNaN(d)) return "";
-  return d.toLocaleString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+function setAnjaTaskStatus(taskId, status) {
+  const list = getAnjaTasks();
+  const idx = list.findIndex(t => t.id === taskId);
+  if (idx < 0) return;
+  list[idx].status = status;
+  list[idx].updatedAt = nowISO();
+  setAnjaTasks(list);
+
+  const inbox = getInbox();
+  const j = inbox.findIndex(x => x.id === taskId);
+  if (j >= 0) {
+    inbox[j].status = status;
+    setInbox(inbox);
+  }
 }
 
 /* ---------- UI helpers ---------- */
@@ -733,7 +686,7 @@ function openModal(contentEl) {
   return () => backdrop.remove();
 }
 
-/* ---------- Unit detail modal ---------- */
+/* ---------- Unit detail modal (Goals) ---------- */
 
 function unitDetailModal(unit) {
   const schedule = getSchedule();
@@ -745,7 +698,7 @@ function unitDetailModal(unit) {
   const title = u.typ === "ziel" ? `🎯 Trainingseinheit` : `🧩 Aufgabe`;
   const main = u.typ === "ziel"
     ? `${u.ziel_name} – Stufe ${u.stufe}\n\n${exercise?.titel ? "Übung: " + exercise.titel : "Keine Übung in goal_uebungen.csv gefunden."}`
-    : `${u.title || "Aufgabe"}${u.note ? "\n\nBemerkung: " + u.note : ""}${u.dueAt ? "\n\nFällig am: " + formatDueLabel(u.dueAt) : ""}`;
+    : (u.title || u.aufgabe || "");
 
   const closeBtn = h("button", { class: "modal-close", type: "button" }, ["✕"]);
   const header = h("div", { class: "modal-header" }, [
@@ -783,10 +736,10 @@ function unitDetailModal(unit) {
     h("div", { class: "small" }, [u.plannedLabel ? `Geplant: ${u.plannedLabel}` : ""]),
     h("div", { style: "white-space:pre-line; font-size:16px; font-weight:800; margin-top:8px" }, [main]),
     h("div", { class: "hr" }, []),
-    h("div", { class: "small" }, [u.typ === "ziel" ? "Rückmeldung (für Ziele empfohlen):" : "Status:"]),
+    h("div", { class: "small" }, ["Rückmeldung (für Ziele empfohlen):"]),
     statusRow,
-    (u.typ === "ziel" ? feedbackRow : h("div", {}, [])),
-    (u.typ === "ziel" ? gernSel : h("div", {}, [])),
+    feedbackRow,
+    gernSel,
     note,
     footer,
   ]);
@@ -810,11 +763,9 @@ function unitDetailModal(unit) {
   body.querySelector("#btnDone").onclick = () => { chosenStatus = "erledigt"; setBtnActive(body.querySelector("#btnDone")); };
   body.querySelector("#btnAbort").onclick = () => { chosenStatus = "abgebrochen"; setBtnActive(body.querySelector("#btnAbort")); };
 
-  if (u.typ === "ziel") {
-    body.querySelector("#fb1").onclick = () => { rueck = "leicht"; setFbActive(body.querySelector("#fb1")); };
-    body.querySelector("#fb2").onclick = () => { rueck = "okay"; setFbActive(body.querySelector("#fb2")); };
-    body.querySelector("#fb3").onclick = () => { rueck = "schwer"; setFbActive(body.querySelector("#fb3")); };
-  }
+  body.querySelector("#fb1").onclick = () => { rueck = "leicht"; setFbActive(body.querySelector("#fb1")); };
+  body.querySelector("#fb2").onclick = () => { rueck = "okay"; setFbActive(body.querySelector("#fb2")); };
+  body.querySelector("#fb3").onclick = () => { rueck = "schwer"; setFbActive(body.querySelector("#fb3")); };
 
   btnSave.onclick = () => {
     if (!chosenStatus) { toast("Bitte: Geschafft oder Abgebrochen wählen."); return; }
@@ -823,20 +774,10 @@ function unitDetailModal(unit) {
     completeUnit(u.id, {
       status: chosenStatus,
       rueckmeldung: rueck || "",
-      gern: body.querySelector("#gernSel")?.value ? parseInt(body.querySelector("#gernSel").value, 10) : null,
+      gern: body.querySelector("#gernSel").value ? parseInt(body.querySelector("#gernSel").value, 10) : null,
       notiz: body.querySelector("#note").value.trim(),
       uebungText: exercise?.titel || "",
     });
-
-    // Wenn es eine Inbox-Aufgabe war: Inbox-Status aktualisieren
-    if (u.typ === "aufgabe" && u.id?.startsWith("taskunit-")) {
-      const inboxId = u.id.replace("taskunit-", "");
-      setInboxStatus(inboxId, chosenStatus === "erledigt" ? "erledigt" : "abgebrochen");
-      try {
-        const frame = document.querySelector("iframe[data-anja-frame='1']");
-        frame?.contentWindow?.postMessage({ type: "GT_TASK_STATUS", id: inboxId, status: (chosenStatus === "erledigt" ? "erledigt" : "abgebrochen") }, "*");
-      } catch {}
-    }
 
     close();
     render();
@@ -861,14 +802,13 @@ function unitDetailModal(unit) {
 function listItemCard(unit) {
   const badgeClass = unit.typ === "ziel" ? "badge goal" : "badge task";
   const badgeIcon = unit.typ === "ziel" ? "🎯" : "🧩";
-
   const title = unit.typ === "ziel"
     ? `${unit.ziel_name} – Stufe ${unit.stufe}`
-    : `${unit.title || "Aufgabe"}`;
+    : `${unit.title || unit.aufgabe || "Aufgabe"}`;
 
   const sub = unit.typ === "ziel"
     ? "Übung: (wird beim Öffnen gewählt)"
-    : `${unit.dueAt ? "Fällig am: " + formatDueLabel(unit.dueAt) : "Optional (Anja)"}${unit.note ? "\nBemerkung: " + unit.note : ""}`;
+    : (unit.rubrik ? `Rubrik: ${unit.rubrik}` : "");
 
   return h("div", { class: "item" }, [
     h("div", { class: badgeClass }, [badgeIcon]),
@@ -900,18 +840,17 @@ function moduleTile(icon, title, lines, btnText, onClick) {
 function goalsSummaryText() {
   const goals = getGoalsNormalized().filter(g => g.aktiv);
   if (!goals.length) return "Aktiv: 0\nKeine aktiven Ziele.";
+
   const lines = goals.slice(0, 3).map(g => `${g.ziel_name} – Stufe ${g.aktuelle_stufe}/${g.max_stufe}`);
   return `Aktiv: ${goals.length}\n` + lines.join("\n");
 }
 
 function tasksSummaryText() {
-  const inbox = getInbox();
-  const neu = inbox.filter(x => x.status === "neu").length;
-  const angen = inbox.filter(x => x.status === "angenommen").length;
-  return `Inbox: ${inbox.length}\nNeu: ${neu} · Angenommen: ${angen}`;
+  const inboxOpen = getInbox().filter(x => (x.source === "anja") && (x.status === "offen" || x.status === "angenommen")).length;
+  return `Inbox (Anja): ${inboxOpen}\nOptional: Aufgaben sind lustbasiert.`;
 }
 
-/* ---------- Startauswahl / Nav ---------- */
+/* ---------- Start / Nav ---------- */
 
 function renderNav() {
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
@@ -919,46 +858,72 @@ function renderNav() {
       sectionTitle("🧭", "Start", null),
       h("div", { class: "small" }, ["Wähle, welchen Bereich du öffnen willst."]),
       h("div", { class: "hr" }, []),
-
       h("div", { class: "grid2" }, [
-        moduleTile("🔱", "Trainer", "Ziele, Trainings, Aufgaben & Log.", "Öffnen", () => {
-          location.hash = "#/home";
-        }),
-        moduleTile("👑", "Anja — Control Panel", "Aufgaben/Kleidung/Kombination erstellen.", "Öffnen", () => {
-          location.hash = "#/anja";
-        }),
+        moduleTile("🜂", "Trainer", "Ziele, Trainings, Log & Settings.", "Öffnen", () => { location.hash = "#/home"; }),
+        moduleTile("👑", "Anja — Control Panel", "Anjas Aufgaben/Kleidung/Kombination.", "Öffnen", () => { location.hash = "#/anja"; }),
       ]),
     ]),
   ]);
 }
 
-/* ---------- Anja view (iframe) ---------- */
+/* ---------- Anja (iframe) ---------- */
 
 function renderAnja() {
+  const btnBack = h("button", { class: "btn secondary", type: "button", onclick: () => { location.hash = "#/nav"; } }, ["Zur Startauswahl"]);
+
+  const statusCard = (() => {
+    const tasks = getAnjaTasks();
+    const open = tasks.filter(t => t.status === "offen").length;
+    const accepted = tasks.filter(t => t.status === "angenommen").length;
+
+    const sample = tasks
+      .filter(t => t.status === "offen" || t.status === "angenommen")
+      .slice(0, 3)
+      .map(t => {
+        const line1 = t.title || "Aufgabe";
+        const line2 = `Status: ${t.status}`;
+        const line3 = t.dueAt ? `Fällig am: ${fmtDateTimeLocal(t.dueAt)}` : "";
+        return h("div", { class: "item" }, [
+          h("div", { class: "badge task" }, ["🧾"]),
+          h("div", { class: "item-main" }, [
+            h("div", { class: "item-title" }, [line1]),
+            h("div", { class: "item-sub" }, [[line2, line3].filter(Boolean).join("\n")]),
+          ])
+        ]);
+      });
+
+    return h("div", { class: "card" }, [
+      sectionTitle("📌", "Status", null),
+      h("div", { class: "small" }, [`Offen: ${open} · Angenommen: ${accepted}`]),
+      h("div", { class: "hr" }, []),
+      sample.length ? h("div", { class: "list" }, sample) : h("div", { class: "small" }, ["Noch keine Aufgaben."])
+    ]);
+  })();
+
   const iframe = h("iframe", {
     src: "control_panel.html",
-    "data-anja-frame": "1",
-    style: "width:100%;height:75vh;border:0;border-radius:16px;background:transparent;",
+    style: "width:100%;height:70vh;border:0;border-radius:16px;background:transparent;",
     loading: "lazy",
   });
 
-  const btnBack = h("button", {
-    class: "btn secondary",
-    type: "button",
-    onclick: () => { location.hash = "#/nav"; }
-  }, ["Zur Startauswahl"]);
-
-  return h("div", { class: "card" }, [
-    sectionTitle("👑", "Anja — Control Panel", btnBack),
-    h("div", { class: "small" }, [
-      "Neue Aufgaben werden bei dir in „Aufgaben“ als Inbox-Einträge sichtbar (Annehmen)."
+  return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
+    h("div", { class: "card" }, [
+      sectionTitle("👑", "Anja — Control Panel", btnBack),
+      h("div", { class: "small" }, [
+        "Aufgaben werden gespeichert (offen/angenommen/erledigt). Du siehst sie unter „Aufgaben“."
+      ]),
     ]),
-    h("div", { class: "hr" }, []),
-    iframe,
+    statusCard,
+    h("div", { class: "card" }, [
+      h("div", { style: "font-weight:900; font-size:16px; margin-bottom:8px" }, ["Control Panel"]),
+      h("div", { class: "small" }, ["(eingebettet)"]),
+      h("div", { class: "hr" }, []),
+      iframe,
+    ]),
   ]);
 }
 
-/* ---------- Home ---------- */
+/* ---------- Home (Trainer) ---------- */
 
 function renderHome() {
   regenIfNeeded(false);
@@ -1044,48 +1009,73 @@ function toggleGoalActive(goalId) {
   const current = goal ? !!goal.aktiv : false;
 
   setGoalOverride(gid, { aktiv: !current });
+
   regenIfNeeded(true);
   render();
 }
 
-/* ---------- Tasks ---------- */
+/* ---------- Tasks (inkl. Inbox von Anja) ---------- */
 
-function renderInboxList() {
-  const inbox = getInbox();
+function renderAnjaInbox() {
+  const tasks = getAnjaTasks();
+  const active = tasks.filter(t => t.status === "offen" || t.status === "angenommen");
 
-  const open = inbox.filter(t => t.source === "anja" && (t.status === "neu" || t.status === "angenommen"));
-
-  if (!open.length) {
-    return h("div", { class: "small", style: "margin-top:10px" }, ["Keine offenen Aufgaben von Anja."]);
+  function canExecute(t) {
+    if (!t.dueAt) return true;
+    return new Date(t.dueAt) <= new Date();
   }
 
-  const items = open.map(t => {
-    const st = (t.status === "neu") ? "Offen" : "Angenommen";
-    const due = t.dueAt ? `\nFällig am: ${formatDueLabel(t.dueAt)}` : "";
-    const note = t.note ? `\nBemerkung: ${t.note}` : "";
+  const cards = active.map(t => {
+    const locked = !canExecute(t);
+    const meta = [
+      `Status: ${t.status}`,
+      t.dueAt ? `Fällig am: ${fmtDateTimeLocal(t.dueAt)}` : "Fällig: sofort",
+      t.note ? `Bemerkung: ${t.note}` : ""
+    ].filter(Boolean).join("\n");
+
+    const btnAccept = h("button", {
+      class: "btn secondary",
+      type: "button",
+      onclick: () => { setAnjaTaskStatus(t.id, "angenommen"); toast("Aufgabe angenommen."); render(); }
+    }, ["Annehmen"]);
+
+    const btnDone = h("button", {
+      class: "btn secondary",
+      type: "button",
+      onclick: () => { setAnjaTaskStatus(t.id, "erledigt"); toast("Erledigt."); render(); },
+      ...(locked ? { disabled: "true" } : {})
+    }, ["Geschafft"]);
+
+    const btnAbort = h("button", {
+      class: "btn secondary",
+      type: "button",
+      onclick: () => { setAnjaTaskStatus(t.id, "abgebrochen"); toast("Abgebrochen."); render(); },
+      ...(locked ? { disabled: "true" } : {})
+    }, ["Abgebrochen"]);
 
     return h("div", { class: "item" }, [
       h("div", { class: "badge task" }, ["👑"]),
       h("div", { class: "item-main" }, [
-        h("div", { class: "item-title" }, [t.title]),
-        h("div", { class: "item-sub" }, [`Status: ${st}${due}${note}`]),
+        h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
+        h("div", { class: "item-sub" }, [meta]),
         h("div", { class: "row", style: "margin-top:10px; gap:10px" }, [
-          (t.status === "neu")
-            ? h("button", { class: "btn secondary", type: "button", onclick: () => acceptInboxTask(t.id) }, ["Annehmen"])
-            : h("button", { class: "btn secondary", type: "button", onclick: () => {
-                // Öffne Unit falls existiert
-                const schedule = getSchedule();
-                const u = schedule?.units?.find(x => x.id === `taskunit-${t.id}`);
-                if (u) unitDetailModal(u);
-                else toast("Noch nicht im Plan.");
-              } }, ["Öffnen"]),
-        ])
-      ]),
-      h("div", { class: "time" }, [""])
+          (t.status === "offen") ? btnAccept : null,
+          btnDone,
+          btnAbort,
+          locked ? h("div", { class: "small" }, ["(gesperrt bis Fälligkeit)"]) : null,
+        ].filter(Boolean))
+      ])
     ]);
   });
 
-  return h("div", { class: "list", style: "margin-top:10px" }, items);
+  return h("div", { class: "card" }, [
+    sectionTitle("👑", "Inbox von Anja", h("button", {
+      class: "btn secondary",
+      type: "button",
+      onclick: () => { location.hash = "#/anja"; }
+    }, ["Zu Anja"])),
+    active.length ? h("div", { class: "list" }, cards) : h("div", { class: "small" }, ["Keine offenen Aufgaben von Anja."])
+  ]);
 }
 
 function renderTasks() {
@@ -1174,18 +1164,17 @@ function renderTasks() {
     }
   };
 
-  return h("div", { class: "card" }, [
-    sectionTitle("🧩", "Aufgaben", null),
-    h("div", { class: "small" }, ["Aufgaben sind optional (Lust / Anja). Keine Progression, keine Strafen."]),
-    h("div", { class: "hr" }, []),
-    rubSel,
-    taskSel,
-    h("div", { class: "row" }, [btnRandom, btnPush]),
-    out,
-
-    h("div", { class: "hr", style: "margin-top:14px" }, []),
-    h("div", { class: "small" }, ["👑 Aufgaben von Anja (Inbox):"]),
-    renderInboxList(),
+  return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
+    renderAnjaInbox(),
+    h("div", { class: "card" }, [
+      sectionTitle("🧩", "Aufgaben", null),
+      h("div", { class: "small" }, ["Aufgaben sind optional (Lust / Anja). Keine Progression, keine Strafen."]),
+      h("div", { class: "hr" }, []),
+      rubSel,
+      taskSel,
+      h("div", { class: "row" }, [btnRandom, btnPush]),
+      out
+    ])
   ]);
 }
 
@@ -1218,10 +1207,8 @@ function renderLog() {
       if (e.rueckmeldung) subLines.push(`Rückmeldung: ${e.rueckmeldung}`);
       if (e.gern) subLines.push(`Gern: ${e.gern}/5`);
     }
-    if (e.dueAt) subLines.push(`Fällig am: ${formatDueLabel(e.dueAt)}`);
     if (e.status) subLines.push(`Status: ${e.status}`);
     if (e.notiz) subLines.push(`Notiz: ${e.notiz}`);
-    if (e.source) subLines.push(`Quelle: ${e.source}`);
 
     return h("div", { class: "item" }, [
       h("div", { class: "badge " + (e.typ === "ziel" ? "goal" : "task") }, [badge]),
@@ -1331,36 +1318,38 @@ async function registerServiceWorker() {
     try {
       await navigator.serviceWorker.register(url, { scope: "./" });
       return;
-    } catch {}
+    } catch {
+      // try next
+    }
   }
 }
 
-/* ---------- Anja Bridge: receive tasks ---------- */
-
-function setupAnjaBridge() {
+/* ---------- Receive messages from control_panel (iframe) ---------- */
+function setupControlPanelBridge() {
   window.addEventListener("message", (ev) => {
     const msg = ev?.data;
     if (!msg || typeof msg !== "object") return;
 
-    if (msg.type === "GT_NEW_TASK") {
-      const res = addInboxTaskFromAnja(msg.payload || {});
-      toast("Neue Aufgabe von Anja erhalten.");
-      render();
+    if (msg.type === "GT_NEW_TASK" && msg.payload) {
+      const p = msg.payload;
 
-      // ACK zurück an iframe (damit Anja "Offen" anzeigen kann)
-      try {
-        ev.source?.postMessage({ type: "GT_TASK_ACK", id: res.id, status: res.status }, "*");
-      } catch {}
+      const task = {
+        id: p.id || (`anja-${Date.now()}-${Math.floor(Math.random() * 10000)}`),
+        title: p.title || p.titel || "Aufgabe",
+        note: p.note || "",
+        dueAt: p.dueAt || "",
+        status: "offen",
+        createdAt: p.createdAt || nowISO(),
+      };
+
+      upsertAnjaTask(task);
+      toast("Neue Aufgabe von Anja gespeichert.");
+      render();
       return;
     }
 
-    if (msg.type === "GT_TASK_QUERY_STATUS") {
-      const inbox = getInbox();
-      const t = inbox.find(x => x.id === msg.id);
-      const status = t?.status || "unbekannt";
-      try {
-        ev.source?.postMessage({ type: "GT_TASK_STATUS", id: msg.id, status }, "*");
-      } catch {}
+    if (msg.type === "GT_REFRESH") {
+      render();
       return;
     }
   });
@@ -1395,12 +1384,13 @@ async function init() {
 
   window.addEventListener("hashchange", onRoute);
 
-  setupAnjaBridge();
+  setupControlPanelBridge();
   await registerServiceWorker();
 
   try { await loadAllCSV(); } catch (e) { console.warn(e); }
 
   regenIfNeeded(true);
+
   setInterval(() => { maybeDispatchPushes(); }, state.settings.tickSeconds * 1000);
 
   if (!location.hash) location.hash = "#/nav";
