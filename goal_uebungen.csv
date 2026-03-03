@@ -1,4 +1,4 @@
-ziel_id;stufe;uebung_id;titel;klasse
+﻿ziel_id;stufe;uebung_id;titel;klasse
 KV;1;kv_1_01;Ansehen (30 Sek bewusst atmen);soft
 KV;1;kv_1_02;Riechen (1x2 Sek);pflicht
 KV;2;kv_2_01;Mit Handschuh anfassen;pflicht
@@ -6,9 +6,11 @@ KV;2;kv_2_02;Ohne Handschuh kurz anfassen;hard
 KV;3;kv_3_01;Minimaler Kontakt an Lippen (1 Sek);heavy
 KV;4;kv_4_01;Sehr kleine Menge aufnehmen;heavy
 KV;5;kv_5_01;Kleine definierte Menge essen;heavy
-ANAL;1;an_1_01;Kurze Vorbereitung (Atmung + Entspannung);soft
-ANAL;1;an_1_02;Plug klein 5 Minuten;pflicht
-ANAL;2;an_2_01;Plug mittel 10 Minuten;hard
+ANAL;1;an_1_01;Kleiner Plug Tunnel (Meo-schwarz) 60 Min;soft
+ANAL;1;an_1_02;Plug klein 30 Minuten;soft
+ANAL;2;an_1_01;Plug Klein 60 Minuten;pflicht
+ANAL;2;an_1_02;Plug mittel 30 Minuten;pflicht
+ANAL;2;an_2_01;Plug mittel 60 Minuten;hard
 ANAL;3;an_3_01;Dehnung 3 Atemzyklen;hard
 ANAL;4;an_4_01;Größerer Plug (kurz);heavy
 ANAL;5;an_5_01;Zielstufe: maximale Toleranz (kurz);heavy
@@ -21,9 +23,24 @@ NS;1;ns_01_01;Hand in Strahl halten;Soft
 NS;2;ns_01_02;Finger in Strahl halten und ablecken;Soft
 NS;;ns_02_01;Kleinen Schluck trinken;pflicht
 NS;;ns_03_01;mittleren Schluck trinken;hard
-NS;;ns_04_01;Getr nk mit NS mischen;hard
+NS;;ns_04_01;Getränk mit NS mischen;hard
 NS;;ns_05_01;Glas NS trinken;heavy
 NS;;ns_05_02;als Nasenspray/Nasentropfen verwenden;heavy
-NS;;ns_05_01;Als Haarsp lung verwenden;heavy
-NS;;ns_05_01;Getr nk mit NS trinken;heavy
+NS;;ns_05_01;Als Haarspülung verwenden;heavy
+NS;;ns_05_01;Getränk mit NS trinken;heavy
 NS;;ns_05_01;Gesicht einreiben und trocknen lassen;heavy
+ANALTunnel;1;ant_1_01;Kleiner Plug Tunnel (Meo-schwarz) 60 Min;soft
+ANALTunnel;1;ant_1_02;Kleiner Plug Tunnel (Meo-schwarz) 3h;pflicht
+ANALTunnel;1;ant_1_03;Kleiner Plug Tunnel (Meo-schwarz) 6h;hard
+ANALTunnel;1;ant_1_04;Kleiner Plug Tunnel (Meo-schwarz) 12h;heavy
+ANALTunnel;2;ant_2_01;Kleiner Plug Tunnel (Meo-schwarz) 24h;soft
+ANALTunnel;2;ant_2_02;Mittlerer Plug Tunnel (Chrome) 60min;soft
+ANALTunnel;2;ant_2_03;Mittlerer Plug Tunnel (Chrome) 3h;pflicht
+ANALTunnel;2;ant_2_04;Mittlerer Plug Tunnel (Chrome) 6h;hard
+ANALTunnel;2;ant_2_05;Mittlerer Plug Tunnel (Chrome) 12h;heavy
+ANALTunnel;3;ant_3_01;Mittlerer Plug Tunnel (Chrome) 24h;soft
+ANALTunnel;3;ant_3_02;großer Plug Tunnel (schwarz) 1h;soft
+ANALTunnel;3;ant_3_03;großer Plug Tunnel (schwarz) 3h;pflicht
+ANALTunnel;3;ant_3_04;großer Plug Tunnel (schwarz) 6h;hard
+ANALTunnel;3;ant_3_05;großer Plug Tunnel (schwarz) 12h;hard
+ANALTunnel;3;ant_3_06;großer Plug Tunnel (schwarz) 24h;heavy
