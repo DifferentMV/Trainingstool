@@ -58,7 +58,7 @@
         <h1>Control Panel</h1>
         <div class="sub">Sehr intim · weich präsent · minimal</div>
       </div>
-      <button class="ghost" id="btnReload">Daten neu laden</button>
+      <button class="ghost" id="btnReload" type="button">Daten neu laden</button>
     </header>
 
     <div class="card stack">
@@ -94,31 +94,38 @@
         <div class="stack" id="orgBlock" style="margin-top:6px;">
           <div class="small">Orgasmus:</div>
           <div class="row">
-            <button class="btn secondary" id="orgNo">Nicht gestattet</button>
-            <button class="btn secondary" id="orgYes">Gestattet</button>
+            <button class="btn secondary" id="orgNo" type="button">Nicht gestattet</button>
+            <button class="btn secondary" id="orgYes" type="button">Gestattet</button>
           </div>
           <div id="orgSub" style="display:none; margin-top:8px;">
             <div class="small">Wenn gestattet, dann:</div>
             <div class="row" style="margin-top:6px;">
-              <button class="btn secondary" data-orgsub="Mit Bildnachweis">Mit Bildnachweis</button>
-              <button class="btn secondary" data-orgsub="Ohne wegwischen">Ohne wegwischen</button>
-              <button class="btn secondary" data-orgsub="Mit Aufnahme">Mit Aufnahme</button>
+              <button class="btn secondary" type="button" data-orgsub="Mit Bildnachweis">Mit Bildnachweis</button>
+              <button class="btn secondary" type="button" data-orgsub="Ohne wegwischen">Ohne wegwischen</button>
+              <button class="btn secondary" type="button" data-orgsub="Mit Aufnahme">Mit Aufnahme</button>
             </div>
           </div>
         </div>
 
         <div class="stack" id="pushBlock" style="margin-top:6px;">
           <div class="small">Push ans Handy (ntfy):</div>
-          <input type="text" id="pushTopic"my-secret-task-topic-4711" />
-          <input type="text" id="pushToken" placeholder="Optional: ntfy Access Token" />
-          <label class="small"><input type="checkbox" id="pushOnBuild" /> Bei „Aufgabe erstellen" automatisch Push senden</label>
+
+          <!-- FIX: kaputtes HTML repariert -->
+          <input type="text" id="pushTopic" placeholder="my-secret-task-topic-4711" autocomplete="off" />
+          <input type="text" id="pushToken" placeholder="Optional: ntfy Access Token" autocomplete="off" />
+
+          <label class="small">
+            <input type="checkbox" id="pushOnBuild" />
+            Bei „Aufgabe erstellen" automatisch Push senden
+          </label>
+
           <button class="btn secondary" id="btnPushTest" type="button">Push testen</button>
         </div>
 
         <div class="row" style="margin-top:10px;">
-          <button class="btn" id="btnBuild">Aufgabe erstellen</button>
-          <button class="btn secondary" id="btnRandom">Zufallsaufgabe in Rubrik</button>
-          <button class="btn secondary" id="btnReset">Zurücksetzen</button>
+          <button class="btn" id="btnBuild" type="button">Aufgabe erstellen</button>
+          <button class="btn secondary" id="btnRandom" type="button">Zufallsaufgabe in Rubrik</button>
+          <button class="btn secondary" id="btnReset" type="button">Zurücksetzen</button>
         </div>
       </div>
 
@@ -129,8 +136,8 @@
           <div class="kv" id="resultKV"></div>
         </div>
         <div class="row">
-          <button class="btn" id="btnCopy">Kopieren</button>
-          <button class="btn secondary" id="btnNew">Neue Auswahl</button>
+          <button class="btn" id="btnCopy" type="button">Kopieren</button>
+          <button class="btn secondary" id="btnNew" type="button">Neue Auswahl</button>
         </div>
         <div class="small">Das Tool liefert Struktur. Die persönliche Ansprache kommt von dir.</div>
       </div>
@@ -174,6 +181,7 @@ function restorePushSettings(){
   if(s.token) $("pushToken").value=s.token;
   $("pushOnBuild").checked=!!s.auto;
 }
+
 async function sendNtfyPush(message, title){
   const topic=$("pushTopic").value.trim();
   if(!topic){ setError("Bitte ntfy Topic eintragen."); return false; }
@@ -209,6 +217,18 @@ async function pushCurrentTask(lines, kv){
   }
 }
 
+/* ---- Glam Trainer Bridge: Aufgabe an Parent-App melden ---- */
+function postTaskToParent(payload){
+  try{
+    // nur sinnvoll, wenn eingebettet
+    if(window.parent && window.parent !== window){
+      window.parent.postMessage({ type:"GT_NEW_TASK", payload }, "*");
+    }
+  }catch{}
+}
+
+/* ---- CSV ---- */
+
 async function loadCSV(){
   const res = await fetch("control_panel.csv",{cache:"no-store"});
   if(!res.ok) throw new Error("control_panel.csv nicht gefunden (muss im selben Ordner liegen).");
@@ -226,12 +246,15 @@ async function loadCSV(){
   }).filter(r=>r.typ && r.bereich && r.titel);
 }
 
+/* ---- UI ---- */
+
 function renderModes(){
   const g=$("modeGrid"); g.innerHTML="";
   const modes=[{k:"Aufgabe",h:"Handlung / Verhalten"},{k:"Kleidung",h:"Erscheinung / Symbolik"},{k:"Kombination",h:"Kleidung + Aufgabe"}];
   for(const m of modes){
     const b=document.createElement("button");
     b.className="pill"+(mode===m.k?" active":"");
+    b.type="button";
     b.innerHTML=`<div class="k">${m.k}</div><div class="h">${m.h}</div>`;
     b.onclick=()=>selectMode(m.k);
     g.appendChild(b);
@@ -265,6 +288,7 @@ function renderBereiche(){
   for(const bch of bereiche){
     const b=document.createElement("button");
     b.className="pill"+(bereich===bch?" active":"");
+    b.type="button";
     b.innerHTML=`<div class="k">${bch}</div><div class="h">${t}</div>`;
     b.onclick=()=>{bereich=bch; renderBereiche(); renderItems();};
     g.appendChild(b);
@@ -305,6 +329,7 @@ function renderItems(){
     const sel=selection.some(s=>s.typ===it.typ && s.bereich===it.bereich && s.titel===it.titel);
     const b=document.createElement("button");
     b.className="pill"+(sel?" active":"");
+    b.type="button";
     b.innerHTML=`<div class="k">${it.titel}</div><div class="h">${it.typ} · ${it.bereich}</div>`;
     b.onclick=()=>toggleSelection(it);
     $("itemGrid").appendChild(b);
@@ -360,7 +385,6 @@ function buildResult(){
 
   const n=computeNeeds();
   const dauerVal = n.dauer ? $("inpDauer").value.trim() : "";
-  // Dauer ist optional
   if(n.org && orgasmAllowed===null){setError("Bitte Orgasmus-Regel wählen."); return;}
   if(n.org && orgasmAllowed===true && !orgasmRule){setError("Bitte Regel wählen (Bildnachweis / ohne wegwischen / Aufnahme)."); return;}
 
@@ -370,6 +394,7 @@ function buildResult(){
   }).map(s=>s.titel);
 
   $("resultMain").textContent = lines.join("\n");
+
   const kv=[];
   if(n.dauer && dauerVal){
     kv.push(["Dauer", dauerVal]);
@@ -378,14 +403,28 @@ function buildResult(){
     kv.push(["Orgasmus", orgasmAllowed ? "Gestattet":"Nicht gestattet"]);
     if(orgasmAllowed) kv.push(["Regel", orgasmRule]);
   }
+
   const kvEl=$("resultKV"); kvEl.innerHTML="";
   for(const [k,v] of kv){
     const k1=document.createElement("div"); k1.className="k"; k1.textContent=k+":";
     const v1=document.createElement("div"); v1.textContent=v;
     kvEl.appendChild(k1); kvEl.appendChild(v1);
   }
+
   $("stepResult").style.display="block";
 
+  // ✅ Immer an Parent-App melden (Inbox)
+  postTaskToParent({
+    titel: lines.join(" / "),
+    lines,
+    mode,
+    bereich,
+    dauer: (n.dauer ? dauerVal : ""),
+    orgasmus: n.org ? { allowed: !!orgasmAllowed, rule: (orgasmAllowed ? orgasmRule : "") } : null,
+    createdAt: new Date().toISOString()
+  });
+
+  // optionaler Auto-Push
   if($("pushOnBuild").checked){
     pushCurrentTask(lines, kv);
   }
@@ -408,6 +447,7 @@ function buildCopyText(){
 function wire(){
   $("btnReload").onclick=async()=>{ try{await loadCSV(); resetAll(); showToast("Daten geladen.");}catch(e){setError(String(e.message||e));} };
   $("btnReset").onclick=resetAll;
+
   $("btnNew").onclick=()=>{
     selection=[]; bereich=null; $("inpDauer").value="";
     orgasmAllowed=null; orgasmRule=""; $("orgSub").style.display="none";
@@ -418,13 +458,16 @@ function wire(){
     else { renderBereiche(); ["stepItem","stepParams","sep2","sep3"].forEach(id=>$(id).style.display="none"); }
     setError(null);
   };
+
   $("btnBuild").onclick=buildResult;
   $("btnRandom").onclick=createRandomTaskInRubrik;
+
   $("btnPushTest").onclick=async()=>{
     setError(null);
     try{ await sendNtfyPush("Testnachricht vom Control Panel", "Push-Test"); showToast("Push-Test gesendet."); }
     catch(e){ setError(String(e.message||e)); }
   };
+
   $("pushTopic").onchange=savePushSettings;
   $("pushToken").onchange=savePushSettings;
   $("pushOnBuild").onchange=savePushSettings;
@@ -438,14 +481,26 @@ function wire(){
     }
   };
 
-  $("orgNo").onclick=()=>{ orgasmAllowed=false; orgasmRule=""; $("orgNo").classList.add("active"); $("orgYes").classList.remove("active"); $("orgSub").style.display="none";
+  $("orgNo").onclick=()=>{
+    orgasmAllowed=false; orgasmRule="";
+    $("orgNo").classList.add("active");
+    $("orgYes").classList.remove("active");
+    $("orgSub").style.display="none";
     document.querySelectorAll('[data-orgsub]').forEach(b=>b.classList.remove("active"));
   };
-  $("orgYes").onclick=()=>{ orgasmAllowed=true; $("orgYes").classList.add("active"); $("orgNo").classList.remove("active"); $("orgSub").style.display="block"; };
+
+  $("orgYes").onclick=()=>{
+    orgasmAllowed=true;
+    $("orgYes").classList.add("active");
+    $("orgNo").classList.remove("active");
+    $("orgSub").style.display="block";
+  };
+
   document.querySelectorAll('[data-orgsub]').forEach(b=> b.onclick=()=>{
     if(orgasmAllowed!==true) return;
     document.querySelectorAll('[data-orgsub]').forEach(x=>x.classList.remove("active"));
-    b.classList.add("active"); orgasmRule=b.getAttribute("data-orgsub");
+    b.classList.add("active");
+    orgasmRule=b.getAttribute("data-orgsub");
   });
 }
 
