@@ -154,6 +154,10 @@ let orgasmAllowed=null, orgasmRule="";
 const PUSH_SETTINGS_KEY="controlPanelPushSettings";
 const $=id=>document.getElementById(id);
 
+const IS_EMBEDDED = (window.parent && window.parent !== window);
+let LAST_TASK_ID = null;
+let LAST_TASK_STATUS = "Offen";
+
 function setError(msg){
   const b=$("errBox");
   if(!msg){b.style.display="none";b.textContent="";return;}
@@ -220,12 +224,33 @@ async function pushCurrentTask(lines, kv){
 /* ---- Glam Trainer Bridge: Aufgabe an Parent-App melden ---- */
 function postTaskToParent(payload){
   try{
-    // nur sinnvoll, wenn eingebettet
-    if(window.parent && window.parent !== window){
+    if(IS_EMBEDDED){
       window.parent.postMessage({ type:"GT_NEW_TASK", payload }, "*");
     }
   }catch{}
 }
+
+/* ---- Optional: Rückmeldung von Parent-App (wenn Marlo „Annehmen“ klickt) ---- */
+window.addEventListener("message", (ev) => {
+  const d = ev?.data;
+  if(!d || typeof d !== "object") return;
+
+  // Parent kann senden: { type:"GT_TASK_ACCEPTED", taskId:"..." }
+  if(d.type === "GT_TASK_ACCEPTED" && d.taskId && LAST_TASK_ID && d.taskId === LAST_TASK_ID){
+    LAST_TASK_STATUS = "Angenommen";
+    // KV neu rendern (nur Status-Zeile aktualisieren)
+    const kvEl = $("resultKV");
+    if(kvEl){
+      const kids=[...kvEl.children];
+      for(let i=0;i<kids.length;i+=2){
+        const k = (kids[i]?.textContent || "").replace(":","").trim();
+        if(k === "Status"){
+          if(kids[i+1]) kids[i+1].textContent = LAST_TASK_STATUS;
+        }
+      }
+    }
+  }
+});
 
 /* ---- CSV ---- */
 
@@ -404,6 +429,11 @@ function buildResult(){
     if(orgasmAllowed) kv.push(["Regel", orgasmRule]);
   }
 
+  // ✅ Status in Anjas Ansicht
+  LAST_TASK_ID = `task_${Date.now()}_${Math.floor(Math.random()*100000)}`;
+  LAST_TASK_STATUS = "Offen";
+  kv.push(["Status", LAST_TASK_STATUS]);
+
   const kvEl=$("resultKV"); kvEl.innerHTML="";
   for(const [k,v] of kv){
     const k1=document.createElement("div"); k1.className="k"; k1.textContent=k+":";
@@ -415,18 +445,20 @@ function buildResult(){
 
   // ✅ Immer an Parent-App melden (Inbox)
   postTaskToParent({
+    id: LAST_TASK_ID,
     titel: lines.join(" / "),
     lines,
     mode,
     bereich,
     dauer: (n.dauer ? dauerVal : ""),
     orgasmus: n.org ? { allowed: !!orgasmAllowed, rule: (orgasmAllowed ? orgasmRule : "") } : null,
+    status: "offen",
     createdAt: new Date().toISOString()
   });
 
   // optionaler Auto-Push
   if($("pushOnBuild").checked){
-    pushCurrentTask(lines, kv);
+    pushCurrentTask(lines, kv.filter(x => x[0] !== "Status")); // Status nicht in Push nötig
   }
 }
 
