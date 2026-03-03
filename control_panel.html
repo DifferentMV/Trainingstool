@@ -109,16 +109,12 @@
 
         <div class="stack" id="pushBlock" style="margin-top:6px;">
           <div class="small">Push ans Handy (ntfy):</div>
-
-          <!-- FIX: kaputtes HTML repariert -->
           <input type="text" id="pushTopic" placeholder="my-secret-task-topic-4711" autocomplete="off" />
           <input type="text" id="pushToken" placeholder="Optional: ntfy Access Token" autocomplete="off" />
-
           <label class="small">
             <input type="checkbox" id="pushOnBuild" />
             Bei „Aufgabe erstellen" automatisch Push senden
           </label>
-
           <button class="btn secondary" id="btnPushTest" type="button">Push testen</button>
         </div>
 
@@ -221,7 +217,7 @@ async function pushCurrentTask(lines, kv){
   }
 }
 
-/* ---- Glam Trainer Bridge: Aufgabe an Parent-App melden ---- */
+/* ---- Bridge: an Parent-App melden ---- */
 function postTaskToParent(payload){
   try{
     if(IS_EMBEDDED){
@@ -230,30 +226,38 @@ function postTaskToParent(payload){
   }catch{}
 }
 
-/* ---- Optional: Rückmeldung von Parent-App (wenn Marlo „Annehmen“ klickt) ---- */
+/* ---- Rückmeldung: Parent-App sagt "angenommen" ---- */
+function setStatusInResult(newStatus){
+  LAST_TASK_STATUS = newStatus;
+  const kvEl = $("resultKV");
+  if(!kvEl) return;
+
+  const kids=[...kvEl.children];
+  for(let i=0;i<kids.length;i+=2){
+    const k = (kids[i]?.textContent || "").replace(":","").trim();
+    if(k === "Status" && kids[i+1]){
+      kids[i+1].textContent = LAST_TASK_STATUS;
+    }
+  }
+}
+
 window.addEventListener("message", (ev) => {
   const d = ev?.data;
   if(!d || typeof d !== "object") return;
 
-  // Parent kann senden: { type:"GT_TASK_ACCEPTED", taskId:"..." }
   if(d.type === "GT_TASK_ACCEPTED" && d.taskId && LAST_TASK_ID && d.taskId === LAST_TASK_ID){
-    LAST_TASK_STATUS = "Angenommen";
-    // KV neu rendern (nur Status-Zeile aktualisieren)
-    const kvEl = $("resultKV");
-    if(kvEl){
-      const kids=[...kvEl.children];
-      for(let i=0;i<kids.length;i+=2){
-        const k = (kids[i]?.textContent || "").replace(":","").trim();
-        if(k === "Status"){
-          if(kids[i+1]) kids[i+1].textContent = LAST_TASK_STATUS;
-        }
-      }
-    }
+    setStatusInResult("Angenommen");
+  }
+
+  // optional: Sync (z.B. wenn später wieder geöffnet)
+  if(d.type === "GT_TASK_STATUS_SYNC" && d.statusMap && typeof d.statusMap === "object"){
+    const st = d.statusMap[String(LAST_TASK_ID)];
+    if(st === "angenommen") setStatusInResult("Angenommen");
+    if(st === "offen") setStatusInResult("Offen");
   }
 });
 
 /* ---- CSV ---- */
-
 async function loadCSV(){
   const res = await fetch("control_panel.csv",{cache:"no-store"});
   if(!res.ok) throw new Error("control_panel.csv nicht gefunden (muss im selben Ordner liegen).");
@@ -272,7 +276,6 @@ async function loadCSV(){
 }
 
 /* ---- UI ---- */
-
 function renderModes(){
   const g=$("modeGrid"); g.innerHTML="";
   const modes=[{k:"Aufgabe",h:"Handlung / Verhalten"},{k:"Kleidung",h:"Erscheinung / Symbolik"},{k:"Kombination",h:"Kleidung + Aufgabe"}];
@@ -429,7 +432,6 @@ function buildResult(){
     if(orgasmAllowed) kv.push(["Regel", orgasmRule]);
   }
 
-  // ✅ Status in Anjas Ansicht
   LAST_TASK_ID = `task_${Date.now()}_${Math.floor(Math.random()*100000)}`;
   LAST_TASK_STATUS = "Offen";
   kv.push(["Status", LAST_TASK_STATUS]);
@@ -443,7 +445,7 @@ function buildResult(){
 
   $("stepResult").style.display="block";
 
-  // ✅ Immer an Parent-App melden (Inbox)
+  // an Parent-App melden (Inbox)
   postTaskToParent({
     id: LAST_TASK_ID,
     titel: lines.join(" / "),
@@ -456,9 +458,8 @@ function buildResult(){
     createdAt: new Date().toISOString()
   });
 
-  // optionaler Auto-Push
   if($("pushOnBuild").checked){
-    pushCurrentTask(lines, kv.filter(x => x[0] !== "Status")); // Status nicht in Push nötig
+    pushCurrentTask(lines, kv.filter(x => x[0] !== "Status"));
   }
 }
 
