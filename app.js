@@ -165,6 +165,14 @@ function setSchedule(x) { saveJSON(STORAGE.schedule, x); }
 
 function getInbox() { return loadJSON(STORAGE.inbox, []); }
 function setInbox(x) { saveJSON(STORAGE.inbox, x); }
+function getAnjaOutbox() { return loadJSON(STORAGE.anjaOutbox, []); }
+function setAnjaOutbox(x) { saveJSON(STORAGE.anjaOutbox, x); }
+
+function broadcastToAnja(payload) {
+  // sendet an das eingebettete control_panel.html (iframe)
+  const fr = document.getElementById("anjaFrame");
+  if (fr && fr.contentWindow) fr.contentWindow.postMessage(payload, location.origin);
+}
 
 function persistOverrides() { saveJSON(STORAGE.goalOverrides, state.goalOverrides); }
 
@@ -636,6 +644,7 @@ function acceptInboxTask(inboxId) {
   it.status = "angenommen";
   it.acceptedAt = nowISO();
   setInbox(inbox);
+  broadcastToAnja({ type: "ANJA_TASK_STATUS", id: taskId, status: "angenommen" });
 
   // Task als schedule-unit reinlegen (heute, sofort fällig)
   const schedule = getSchedule() || { dayKey: todayKey(), createdAt: nowISO(), lastPushAtGoals: null, units: [] };
@@ -939,8 +948,17 @@ function renderHome() {
 /* ---------- Anja ---------- */
 
 function renderAnjaStatusPanel() {
-  const inbox = getInbox();
-  const openTasks = inbox.filter(x => x.source === "anja" && (x.status === "neu" || x.status === "angenommen"));
+h("div", { class: "small" }, [
+  t.status === "neu"
+    ? "Wartet auf Annahme"
+    : t.status === "angenommen"
+      ? "✓ Von Marlo angenommen"
+      : t.status === "erledigt"
+        ? "✓ Erledigt"
+        : t.status === "abgebrochen"
+          ? "Abgebrochen"
+          : t.status
+])
 
   const goals = getGoalsNormalized().filter(g => g.aktiv);
   const goalLines = goals.slice(0, 6).map(g => {
@@ -1353,7 +1371,42 @@ function onMessageFromIframe(ev) {
     render();
   }
 }
+  // Nachrichten vom Anja-Control-Panel empfangen
+  window.addEventListener("message", (ev) => {
+    if (ev.origin !== location.origin) return;
+    const msg = ev.data || {};
+    if (msg.type !== "ANJA_NEW_TASK") return;
 
+    const inbox = getInbox();
+    const id = msg.id || `anja-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+
+    // Duplikate verhindern
+    if (inbox.some(x => x.id === id)) return;
+
+    const entry = {
+      id,
+      typ: "anja_task",
+      status: "neu", // neu | angenommen | erledigt | abgebrochen
+      createdAt: nowISO(),
+      title: msg.title || "Aufgabe von Anja",
+      text: msg.text || "",
+      meta: msg.meta || {},
+    };
+
+    inbox.unshift(entry);
+    setInbox(inbox);
+
+    // optional: eigener Verlauf für Anja (für Anzeige)
+    const out = getAnjaOutbox();
+    out.unshift({ id, status: "neu", createdAt: entry.createdAt, title: entry.title });
+    setAnjaOutbox(out);
+
+    // Anja sofort rückmelden
+    broadcastToAnja({ type: "ANJA_TASK_STATUS", id, status: "neu" });
+
+    toast("Neue Aufgabe von Anja eingegangen.");
+    render();
+  });
 async function init() {
   const label = $("todayLabel");
   if (label) {
