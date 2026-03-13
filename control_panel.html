@@ -340,17 +340,19 @@ function renderTaskStatus() {
   if (!box) return;
   box.innerHTML = "";
 
-  const active = anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen").slice(0, 6);
+  const open = anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen").slice(0, 6);
+  const done = anjaTasks.filter(t => t.status === "erledigt" || t.status === "abgebrochen").slice(0, 5);
 
-  if (!active.length) {
+  if (!open.length && !done.length) {
     const d = document.createElement("div");
     d.className = "small";
-    d.textContent = "Noch keine offenen Aufgaben.";
+    d.textContent = "Noch keine Aufgaben.";
     box.appendChild(d);
     return;
   }
 
-  active.forEach(t => {
+  // Offene / laufende
+  open.forEach(t => {
     const div = document.createElement("div");
     div.className = "taskline";
     const left = document.createElement("div");
@@ -359,12 +361,14 @@ function renderTaskStatus() {
     const title = document.createElement("div");
     title.style.fontWeight = "800";
     title.textContent = t.title || "Aufgabe";
+
     const meta = document.createElement("div");
     meta.className = "small";
     meta.textContent = [
       `Status: ${t.status}`,
       t.dueAt ? `Fällig am: ${fmtDateTime(t.dueAt)}` : "Fällig: sofort",
-      t.note ? `Bemerkung: ${t.note}` : ""
+      t.note ? `Bemerkung: ${t.note}` : "",
+      t.acceptedAt ? `Angenommen: ${fmtDateTime(t.acceptedAt)}` : ""
     ].filter(Boolean).join(" · ");
 
     left.appendChild(title);
@@ -373,12 +377,67 @@ function renderTaskStatus() {
     const right = document.createElement("div");
     right.className = "small";
     right.style.whiteSpace = "nowrap";
-    right.textContent = (t.status === "offen") ? "Offen" : "Angenommen";
+    right.textContent = t.status === "offen" ? "Offen" : "Angenommen";
 
     div.appendChild(left);
     div.appendChild(right);
     box.appendChild(div);
   });
+
+  // Erledigte mit Rückmeldung + Foto
+  if (done.length) {
+    const sep = document.createElement("div");
+    sep.className = "sep";
+    box.appendChild(sep);
+
+    const label = document.createElement("div");
+    label.className = "title";
+    label.style.marginTop = "4px";
+    label.textContent = "Rückmeldungen";
+    box.appendChild(label);
+
+    done.forEach(t => {
+      const div = document.createElement("div");
+      div.className = "taskline";
+      div.style.flexDirection = "column";
+      div.style.gap = "8px";
+
+      const top = document.createElement("div");
+      top.style.display = "flex";
+      top.style.justifyContent = "space-between";
+      top.style.gap = "10px";
+
+      const left = document.createElement("div");
+      left.style.flex = "1";
+
+      const title = document.createElement("div");
+      title.style.fontWeight = "800";
+      title.textContent = t.title || "Aufgabe";
+
+      const meta = document.createElement("div");
+      meta.className = "small";
+      meta.textContent = [
+        t.doneAt ? `Erledigt: ${fmtDateTime(t.doneAt)}` : "",
+        t.rueckmeldung ? `Rückmeldung: ${t.rueckmeldung}` : ""
+      ].filter(Boolean).join(" · ");
+
+      left.appendChild(title);
+      left.appendChild(meta);
+
+      const badge = document.createElement("div");
+      badge.className = "small";
+      badge.style.whiteSpace = "nowrap";
+      badge.style.fontWeight = "800";
+      badge.textContent = t.status === "erledigt" ? "✓ Erledigt" : "✗ Abgebrochen";
+      badge.style.color = t.status === "erledigt" ? "#7ecfa0" : "#c25d6a";
+
+      top.appendChild(left);
+      top.appendChild(badge);
+      div.appendChild(top);
+
+      box.appendChild(div);
+    });
+  }
 }
 
 // ── CSV ──
