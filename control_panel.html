@@ -53,6 +53,7 @@
       border:1px solid var(--line);padding:10px 12px;border-radius:14px;font-size:13px;display:none}
     .error{display:none;border:1px solid rgba(194,93,106,.55);background:rgba(194,93,106,.08);padding:10px 12px;border-radius:14px}
     .taskline{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(0,0,0,.12)}
+    .syncbadge{font-size:11px;color:var(--muted);margin-left:8px}
   </style>
 </head>
 <body>
@@ -69,7 +70,7 @@
 
       <!-- STATUS -->
       <div class="stack">
-        <div class="title">Offene / laufende Aufgaben</div>
+        <div class="title">Offene / laufende Aufgaben <span class="syncbadge" id="syncBadge"></span></div>
         <div id="taskStatus" class="stack"></div>
         <div class="sep"></div>
       </div>
@@ -173,119 +174,194 @@
   <div class="toast" id="toast">Kopiert.</div>
 
 <script>
-let DATA=[], mode=null, bereich=null, selection=[], currentType=null;
-let orgasmAllowed=null, orgasmRule="";
+// ═══════════════════════════════════════
+// FIREBASE KONFIGURATION
+// ═══════════════════════════════════════
+const FIREBASE_URL = "https://ds-trainingstool-default-rtdb.europe-west1.firebasedatabase.app";
 
-const PUSH_SETTINGS_KEY="controlPanelPushSettings";
-const ANJA_TASKS_KEY="gt_anja_tasks_v1";
-const $=id=>document.getElementById(id);
-
-function setError(msg){
-  const b=$("errBox");
-  if(!msg){b.style.display="none";b.textContent="";return;}
-  b.style.display="block";b.textContent=msg;
-}
-function showToast(msg){
-  const t=$("toast"); t.textContent=msg||"OK"; t.style.display="block";
-  setTimeout(()=>t.style.display="none",1200);
+async function fbGet(path) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`);
+  if (!res.ok) return null;
+  return await res.json();
 }
 
-function getPushSettings(){
+async function fbPush(path, value) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.name;
+}
+
+async function fbPatch(path, patch) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return res.ok;
+}
+
+async function fbGetAnjaTasks() {
+  const data = await fbGet("anja_tasks");
+  if (!data) return [];
+  return Object.entries(data).map(([fbKey, task]) => ({ ...task, _fbKey: fbKey }));
+}
+
+async function fbSaveAnjaTask(task) {
+  const { _fbKey, ...clean } = task;
+  const fbKey = await fbPush("anja_tasks", clean);
+  return fbKey;
+}
+
+// ═══════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════
+let DATA = [], mode = null, bereich = null, selection = [], currentType = null;
+let orgasmAllowed = null, orgasmRule = "";
+let anjaTasks = []; // aus Firebase
+
+const PUSH_SETTINGS_KEY = "controlPanelPushSettings";
+const $ = id => document.getElementById(id);
+
+function setError(msg) {
+  const b = $("errBox");
+  if (!msg) { b.style.display = "none"; b.textContent = ""; return; }
+  b.style.display = "block"; b.textContent = msg;
+}
+
+function showToast(msg) {
+  const t = $("toast"); t.textContent = msg || "OK"; t.style.display = "block";
+  setTimeout(() => t.style.display = "none", 1200);
+}
+
+function setSyncBadge(msg) {
+  const b = $("syncBadge");
+  if (b) b.textContent = msg || "";
+}
+
+// ── Push Settings (localStorage – nur Push-Einstellungen, keine Tasks) ──
+
+function getPushSettings() {
   return JSON.parse(localStorage.getItem(PUSH_SETTINGS_KEY) || "{}");
 }
-function savePushSettings(){
-  const settings={
+function savePushSettings() {
+  const settings = {
     topic: $("pushTopic").value.trim(),
     token: $("pushToken").value.trim(),
     auto: $("pushOnBuild").checked
   };
   localStorage.setItem(PUSH_SETTINGS_KEY, JSON.stringify(settings));
 }
-function restorePushSettings(){
-  const s=getPushSettings();
-  if(s.topic) $("pushTopic").value=s.topic;
-  if(s.token) $("pushToken").value=s.token;
-  $("pushOnBuild").checked=!!s.auto;
+function restorePushSettings() {
+  const s = getPushSettings();
+  if (s.topic) $("pushTopic").value = s.topic;
+  if (s.token) $("pushToken").value = s.token;
+  $("pushOnBuild").checked = !!s.auto;
 }
 
-async function sendNtfyPush(message, title){
-  const topic=$("pushTopic").value.trim();
-  if(!topic){ setError("Bitte ntfy Topic eintragen."); return false; }
-  const token=$("pushToken").value.trim();
-  const headers={
-    "Content-Type":"text/plain; charset=utf-8",
+// ── Push (ntfy) ──
+
+async function sendNtfyPush(message, title) {
+  const topic = $("pushTopic").value.trim();
+  if (!topic) { setError("Bitte ntfy Topic eintragen."); return false; }
+  const token = $("pushToken").value.trim();
+  const headers = {
+    "Content-Type": "text/plain; charset=utf-8",
     "Title": title || "Neue Aufgabe",
-    "Priority":"default",
-    "Tags":"bell"
+    "Priority": "default",
+    "Tags": "bell"
   };
-  if(token) headers["Authorization"]=`Bearer ${token}`;
-  const res=await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`,{method:"POST",headers,body:message});
-  if(!res.ok){
-    const txt=await res.text();
-    throw new Error(`Push fehlgeschlagen (${res.status}): ${txt.slice(0,120)}`);
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`, { method: "POST", headers, body: message });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Push fehlgeschlagen (${res.status}): ${txt.slice(0, 120)}`);
   }
   return true;
 }
 
-function buildTaskPushText(lines, kv){
-  const out=["Neue Aufgabe","",...lines];
-  if(kv.length){
-    out.push("");
-    kv.forEach(([k,v])=>out.push(`${k}: ${v}`));
-  }
+function buildTaskPushText(lines, kv) {
+  const out = ["Neue Aufgabe", "", ...lines];
+  if (kv.length) { out.push(""); kv.forEach(([k, v]) => out.push(`${k}: ${v}`)); }
   return out.join("\n");
 }
 
-async function pushCurrentTask(lines, kv){
-  try{
+async function pushCurrentTask(lines, kv) {
+  try {
     await sendNtfyPush(buildTaskPushText(lines, kv), "Neue Aufgabe");
     showToast("Push gesendet.");
-  }catch(e){
-    setError(String(e.message||e));
+  } catch (e) {
+    setError(String(e.message || e));
   }
 }
 
-/* ---- Shared tasks storage ---- */
+// ── Firebase Task-Funktionen ──
 
-function getAnjaTasks(){
-  return JSON.parse(localStorage.getItem(ANJA_TASKS_KEY) || "[]");
-}
-function setAnjaTasks(list){
-  localStorage.setItem(ANJA_TASKS_KEY, JSON.stringify(list));
-}
-
-function fmtDateTime(iso){
-  if(!iso) return "";
-  const d=new Date(iso);
-  return d.toLocaleString("de-DE");
+async function loadAnjaTasks() {
+  setSyncBadge("lädt…");
+  try {
+    anjaTasks = await fbGetAnjaTasks();
+    setSyncBadge(`${anjaTasks.length} Tasks geladen`);
+  } catch (e) {
+    setSyncBadge("⚠ Ladefehler");
+    console.warn("Firebase Ladefehler:", e);
+  }
 }
 
-function renderTaskStatus(){
-  const box=$("taskStatus");
-  if(!box) return;
-  box.innerHTML="";
+async function saveAnjaTask(task) {
+  try {
+    const fbKey = await fbSaveAnjaTask(task);
+    anjaTasks.unshift({ ...task, _fbKey: fbKey });
+    setSyncBadge("✓ gespeichert");
+    // Parent informieren (falls als iframe eingebettet)
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "GT_NEW_TASK", payload: task }, "*");
+      }
+    } catch {}
+  } catch (e) {
+    setSyncBadge("⚠ Sync-Fehler");
+    console.warn("Firebase Schreibfehler:", e);
+    showToast("⚠ Aufgabe nicht gespeichert (Firebase-Fehler).");
+  }
+}
 
-  const list=getAnjaTasks();
-  const active=list.filter(t=>t.status==="offen" || t.status==="angenommen").slice(0,6);
+function fmtDateTime(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("de-DE");
+}
 
-  if(!active.length){
-    box.appendChild(document.createElement("div")).className="small";
-    box.lastChild.textContent="Noch keine offenen Aufgaben.";
+function renderTaskStatus() {
+  const box = $("taskStatus");
+  if (!box) return;
+  box.innerHTML = "";
+
+  const active = anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen").slice(0, 6);
+
+  if (!active.length) {
+    const d = document.createElement("div");
+    d.className = "small";
+    d.textContent = "Noch keine offenen Aufgaben.";
+    box.appendChild(d);
     return;
   }
 
-  active.forEach(t=>{
-    const div=document.createElement("div");
-    div.className="taskline";
-    const left=document.createElement("div");
-    left.style.flex="1";
+  active.forEach(t => {
+    const div = document.createElement("div");
+    div.className = "taskline";
+    const left = document.createElement("div");
+    left.style.flex = "1";
 
-    const title=document.createElement("div");
-    title.style.fontWeight="800";
-    title.textContent=t.title || "Aufgabe";
-    const meta=document.createElement("div");
-    meta.className="small";
-    meta.textContent=[
+    const title = document.createElement("div");
+    title.style.fontWeight = "800";
+    title.textContent = t.title || "Aufgabe";
+    const meta = document.createElement("div");
+    meta.className = "small";
+    meta.textContent = [
       `Status: ${t.status}`,
       t.dueAt ? `Fällig am: ${fmtDateTime(t.dueAt)}` : "Fällig: sofort",
       t.note ? `Bemerkung: ${t.note}` : ""
@@ -294,10 +370,10 @@ function renderTaskStatus(){
     left.appendChild(title);
     left.appendChild(meta);
 
-    const right=document.createElement("div");
-    right.className="small";
-    right.style.whiteSpace="nowrap";
-    right.textContent=(t.status==="offen") ? "Offen" : "Angenommen";
+    const right = document.createElement("div");
+    right.className = "small";
+    right.style.whiteSpace = "nowrap";
+    right.textContent = (t.status === "offen") ? "Offen" : "Angenommen";
 
     div.appendChild(left);
     div.appendChild(right);
@@ -305,227 +381,209 @@ function renderTaskStatus(){
   });
 }
 
-/* ---- Parent Bridge ---- */
+// ── CSV ──
 
-function notifyParent(type){
-  try{
-    if(window.parent && window.parent !== window){
-      window.parent.postMessage({ type }, "*");
-    }
-  }catch{}
-}
-
-/* ---- CSV ---- */
-
-async function loadCSV(){
-  const res = await fetch("control_panel.csv",{cache:"no-store"});
-  if(!res.ok) throw new Error("control_panel.csv nicht gefunden (muss im selben Ordner liegen).");
+async function loadCSV() {
+  const res = await fetch("control_panel.csv", { cache: "no-store" });
+  if (!res.ok) throw new Error("control_panel.csv nicht gefunden (muss im selben Ordner liegen).");
   const text = await res.text();
-  const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
   const header = lines.shift();
   const sep = header.includes(";") ? ";" : ",";
-  const cols = header.split(sep).map(s=>s.trim().toLowerCase());
-  const idx = {typ:cols.indexOf("typ"),bereich:cols.indexOf("bereich"),titel:cols.indexOf("titel"),dauer:cols.indexOf("dauer"),orgasmus:cols.indexOf("orgasmus")};
-  if(Object.values(idx).some(v=>v<0)) throw new Error("CSV-Header erwartet: typ;bereich;titel;dauer;orgasmus");
-  DATA = lines.map(line=>{
-    const p=line.split(sep).map(x=>(x??"").trim());
-    return {typ:p[idx.typ],bereich:p[idx.bereich],titel:p[idx.titel],
-      dauer:(p[idx.dauer]||"").toLowerCase()==="true", orgasmus:(p[idx.orgasmus]||"").toLowerCase()==="true"};
-  }).filter(r=>r.typ && r.bereich && r.titel);
+  const cols = header.split(sep).map(s => s.trim().toLowerCase());
+  const idx = { typ: cols.indexOf("typ"), bereich: cols.indexOf("bereich"), titel: cols.indexOf("titel"), dauer: cols.indexOf("dauer"), orgasmus: cols.indexOf("orgasmus") };
+  if (Object.values(idx).some(v => v < 0)) throw new Error("CSV-Header erwartet: typ;bereich;titel;dauer;orgasmus");
+  DATA = lines.map(line => {
+    const p = line.split(sep).map(x => (x ?? "").trim());
+    return {
+      typ: p[idx.typ], bereich: p[idx.bereich], titel: p[idx.titel],
+      dauer: (p[idx.dauer] || "").toLowerCase() === "true",
+      orgasmus: (p[idx.orgasmus] || "").toLowerCase() === "true"
+    };
+  }).filter(r => r.typ && r.bereich && r.titel);
 }
 
-/* ---- UI ---- */
+// ── UI ──
 
-function renderModes(){
-  const g=$("modeGrid"); g.innerHTML="";
-  const modes=[{k:"Aufgabe",h:"Handlung / Verhalten"},{k:"Kleidung",h:"Erscheinung / Symbolik"},{k:"Kombination",h:"Kleidung + Aufgabe"}];
-  for(const m of modes){
-    const b=document.createElement("button");
-    b.className="pill"+(mode===m.k?" active":"");
-    b.type="button";
-    b.innerHTML=`<div class="k">${m.k}</div><div class="h">${m.h}</div>`;
-    b.onclick=()=>selectMode(m.k);
+function renderModes() {
+  const g = $("modeGrid"); g.innerHTML = "";
+  const modes = [{ k: "Aufgabe", h: "Handlung / Verhalten" }, { k: "Kleidung", h: "Erscheinung / Symbolik" }, { k: "Kombination", h: "Kleidung + Aufgabe" }];
+  for (const m of modes) {
+    const b = document.createElement("button");
+    b.className = "pill" + (mode === m.k ? " active" : "");
+    b.type = "button";
+    b.innerHTML = `<div class="k">${m.k}</div><div class="h">${m.h}</div>`;
+    b.onclick = () => selectMode(m.k);
     g.appendChild(b);
   }
 }
 
-function resetAll(){
-  mode=null; bereich=null; selection=[]; currentType=null;
-  orgasmAllowed=null; orgasmRule="";
-  $("inpDauer").value="";
-  $("inpDue").value="";
-  $("inpNote").value="";
-  $("inpCustom").value="";
-
-  ["stepBereich","stepItem","stepParams","stepResult","sep2","sep3"].forEach(id=>$(id).style.display="none");
-  $("orgSub").style.display="none";
-  document.querySelectorAll('[data-orgsub]').forEach(b=>b.classList.remove("active"));
+function resetAll() {
+  mode = null; bereich = null; selection = []; currentType = null;
+  orgasmAllowed = null; orgasmRule = "";
+  $("inpDauer").value = ""; $("inpDue").value = ""; $("inpNote").value = ""; $("inpCustom").value = "";
+  ["stepBereich", "stepItem", "stepParams", "stepResult", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
+  $("orgSub").style.display = "none";
+  document.querySelectorAll('[data-orgsub]').forEach(b => b.classList.remove("active"));
   $("orgNo").classList.remove("active"); $("orgYes").classList.remove("active");
   setError(null);
   renderModes();
 }
 
-function selectMode(m){
-  mode=m; selection=[]; bereich=null;
-  currentType = (mode==="Kombination") ? "Kleidung" : mode;
-  $("stepBereich").style.display="block";
-  ["stepItem","stepParams","stepResult","sep2","sep3"].forEach(id=>$(id).style.display="none");
+function selectMode(m) {
+  mode = m; selection = []; bereich = null;
+  currentType = (mode === "Kombination") ? "Kleidung" : mode;
+  $("stepBereich").style.display = "block";
+  ["stepItem", "stepParams", "stepResult", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
   setError(null);
   renderModes(); renderBereiche();
 }
 
-function renderBereiche(){
-  const g=$("bereichGrid"); g.innerHTML="";
-  const t = (mode==="Kombination") ? currentType : mode;
-  const bereiche=[...new Set(DATA.filter(r=>r.typ===t).map(r=>r.bereich))].sort((a,b)=>a.localeCompare(b,"de"));
-  for(const bch of bereiche){
-    const b=document.createElement("button");
-    b.className="pill"+(bereich===bch?" active":"");
-    b.type="button";
-    b.innerHTML=`<div class="k">${bch}</div><div class="h">${t}</div>`;
-    b.onclick=()=>{bereich=bch; renderBereiche(); renderItems();};
+function renderBereiche() {
+  const g = $("bereichGrid"); g.innerHTML = "";
+  const t = (mode === "Kombination") ? currentType : mode;
+  const bereiche = [...new Set(DATA.filter(r => r.typ === t).map(r => r.bereich))].sort((a, b) => a.localeCompare(b, "de"));
+  for (const bch of bereiche) {
+    const b = document.createElement("button");
+    b.className = "pill" + (bereich === bch ? " active" : "");
+    b.type = "button";
+    b.innerHTML = `<div class="k">${bch}</div><div class="h">${t}</div>`;
+    b.onclick = () => { bereich = bch; renderBereiche(); renderItems(); };
     g.appendChild(b);
   }
 }
 
-function toggleSelection(it){
-  const i=selection.findIndex(s=>s.typ===it.typ && s.bereich===it.bereich && s.titel===it.titel);
-  if(i>=0) selection.splice(i,1); else selection.push(it);
+function toggleSelection(it) {
+  const i = selection.findIndex(s => s.typ === it.typ && s.bereich === it.bereich && s.titel === it.titel);
+  if (i >= 0) selection.splice(i, 1); else selection.push(it);
   renderItems();
 }
 
-function computeNeeds(){
-  return {dauer:selection.some(s=>s.dauer), org:selection.some(s=>s.orgasmus)};
+function computeNeeds() {
+  return { dauer: selection.some(s => s.dauer), org: selection.some(s => s.orgasmus) };
 }
 
-function renderParamVisibility(){
-  const n=computeNeeds();
-  $("dauerBlock").style.display = n.dauer ? "block":"none";
-  $("orgBlock").style.display = n.org ? "block":"none";
-  if(!n.org){
-    orgasmAllowed=null; orgasmRule="";
-    $("orgSub").style.display="none";
+function renderParamVisibility() {
+  const n = computeNeeds();
+  $("dauerBlock").style.display = n.dauer ? "block" : "none";
+  $("orgBlock").style.display = n.org ? "block" : "none";
+  if (!n.org) {
+    orgasmAllowed = null; orgasmRule = "";
+    $("orgSub").style.display = "none";
     $("orgNo").classList.remove("active"); $("orgYes").classList.remove("active");
-    document.querySelectorAll('[data-orgsub]').forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll('[data-orgsub]').forEach(b => b.classList.remove("active"));
   }
 }
 
-function renderItems(){
-  $("sep2").style.display="block";
-  $("stepItem").style.display="block";
-  $("stepParams").style.display="block";
-  $("stepResult").style.display="none";
-  $("itemGrid").innerHTML="";
-  const t=(mode==="Kombination")?currentType:mode;
-  const items=DATA.filter(r=>r.typ===t && r.bereich===bereich);
-  for(const it of items){
-    const sel=selection.some(s=>s.typ===it.typ && s.bereich===it.bereich && s.titel===it.titel);
-    const b=document.createElement("button");
-    b.className="pill"+(sel?" active":"");
-    b.type="button";
-    b.innerHTML=`<div class="k">${it.titel}</div><div class="h">${it.typ} · ${it.bereich}</div>`;
-    b.onclick=()=>toggleSelection(it);
+function renderItems() {
+  $("sep2").style.display = "block";
+  $("stepItem").style.display = "block";
+  $("stepParams").style.display = "block";
+  $("stepResult").style.display = "none";
+  $("itemGrid").innerHTML = "";
+  const t = (mode === "Kombination") ? currentType : mode;
+  const items = DATA.filter(r => r.typ === t && r.bereich === bereich);
+  for (const it of items) {
+    const sel = selection.some(s => s.typ === it.typ && s.bereich === it.bereich && s.titel === it.titel);
+    const b = document.createElement("button");
+    b.className = "pill" + (sel ? " active" : "");
+    b.type = "button";
+    b.innerHTML = `<div class="k">${it.titel}</div><div class="h">${it.typ} · ${it.bereich}</div>`;
+    b.onclick = () => toggleSelection(it);
     $("itemGrid").appendChild(b);
   }
-  $("sep3").style.display="block";
+  $("sep3").style.display = "block";
   renderParamVisibility();
-  if(mode==="Kombination") setError(`Kombination: erst ${currentType}. 1–2 wählen, dann „Aufgabe erstellen“.`);
+  if (mode === "Kombination") setError(`Kombination: erst ${currentType}. 1–2 wählen, dann „Aufgabe erstellen".`);
   else setError(null);
 }
 
-function getCurrentRubrikItems(){
-  if(!bereich) return [];
-  const t=(mode==="Kombination") ? currentType : mode;
-  return DATA.filter(r=>r.typ===t && r.bereich===bereich);
+function getCurrentRubrikItems() {
+  if (!bereich) return [];
+  const t = (mode === "Kombination") ? currentType : mode;
+  return DATA.filter(r => r.typ === t && r.bereich === bereich);
 }
 
-function createRandomTaskInRubrik(){
+function createRandomTaskInRubrik() {
   setError(null);
-  if(!mode){ setError("Bitte zuerst einen Modus wählen."); return; }
-  if(!bereich){ setError("Bitte zuerst einen Bereich wählen."); return; }
-
-  const items=getCurrentRubrikItems();
-  if(items.length===0){ setError("In dieser Rubrik sind keine Einträge vorhanden."); return; }
-
-  const randomItem=items[Math.floor(Math.random()*items.length)];
-
-  if(mode==="Kombination") {
-    const keep=selection.filter(s=>s.typ!==currentType);
-    selection=[...keep, randomItem];
+  if (!mode) { setError("Bitte zuerst einen Modus wählen."); return; }
+  if (!bereich) { setError("Bitte zuerst einen Bereich wählen."); return; }
+  const items = getCurrentRubrikItems();
+  if (items.length === 0) { setError("In dieser Rubrik sind keine Einträge vorhanden."); return; }
+  const randomItem = items[Math.floor(Math.random() * items.length)];
+  if (mode === "Kombination") {
+    const keep = selection.filter(s => s.typ !== currentType);
+    selection = [...keep, randomItem];
   } else {
-    selection=[randomItem];
+    selection = [randomItem];
   }
-
   renderItems();
   buildResult();
 }
 
-function buildResult(){
+async function buildResult() {
   setError(null);
 
-  if(mode==="Kombination" && currentType==="Kleidung"){
-    currentType="Aufgabe"; bereich=null;
+  if (mode === "Kombination" && currentType === "Kleidung") {
+    currentType = "Aufgabe"; bereich = null;
     renderBereiche();
-    ["stepItem","stepParams","sep2","sep3"].forEach(id=>$(id).style.display="none");
+    ["stepItem", "stepParams", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
     setError("Jetzt Aufgabe wählen. Kleidung bleibt gespeichert.");
     return;
   }
-  if(mode==="Kombination"){
-    const hasK=selection.some(s=>s.typ==="Kleidung"), hasA=selection.some(s=>s.typ==="Aufgabe");
-    if(!hasK || !hasA){setError("Für Kombination braucht es mindestens 1 Kleidung und 1 Aufgabe."); return;}
+  if (mode === "Kombination") {
+    const hasK = selection.some(s => s.typ === "Kleidung"), hasA = selection.some(s => s.typ === "Aufgabe");
+    if (!hasK || !hasA) { setError("Für Kombination braucht es mindestens 1 Kleidung und 1 Aufgabe."); return; }
   }
 
-  const custom=$("inpCustom").value.trim();
-
-  if(!custom && selection.length===0){
+  const custom = $("inpCustom").value.trim();
+  if (!custom && selection.length === 0) {
     setError("Bitte mindestens eine Auswahl treffen – oder eigene Aufgabe eingeben.");
     return;
   }
 
-  const n=computeNeeds();
+  const n = computeNeeds();
   const dauerVal = n.dauer ? $("inpDauer").value.trim() : "";
-  if(n.org && orgasmAllowed===null){setError("Bitte Orgasmus-Regel wählen."); return;}
-  if(n.org && orgasmAllowed===true && !orgasmRule){setError("Bitte Regel wählen (Bildnachweis / ohne wegwischen / Aufnahme)."); return;}
+  if (n.org && orgasmAllowed === null) { setError("Bitte Orgasmus-Regel wählen."); return; }
+  if (n.org && orgasmAllowed === true && !orgasmRule) { setError("Bitte Regel wählen (Bildnachweis / ohne wegwischen / Aufnahme)."); return; }
 
-  const dueLocal=$("inpDue").value; // datetime-local (yyyy-mm-ddThh:mm)
+  const dueLocal = $("inpDue").value;
   const dueAt = dueLocal ? new Date(dueLocal).toISOString() : "";
+  const note = $("inpNote").value.trim();
 
-  const note=$("inpNote").value.trim();
-
-  let lines=[];
-  if(custom){
-    lines=[custom];
+  let lines = [];
+  if (custom) {
+    lines = [custom];
   } else {
-    lines = selection.slice().sort((a,b)=>{
-      const o=x=>x.typ==="Kleidung"?0:1;
-      return o(a)-o(b) || a.bereich.localeCompare(b.bereich,"de") || a.titel.localeCompare(b.titel,"de");
-    }).map(s=>s.titel);
+    lines = selection.slice().sort((a, b) => {
+      const o = x => x.typ === "Kleidung" ? 0 : 1;
+      return o(a) - o(b) || a.bereich.localeCompare(b.bereich, "de") || a.titel.localeCompare(b.titel, "de");
+    }).map(s => s.titel);
   }
 
   $("resultMain").textContent = lines.join("\n");
 
-  const kv=[];
-  if(dueAt) kv.push(["Fällig am", fmtDateTime(dueAt)]);
-  if(note) kv.push(["Bemerkung", note]);
-  if(n.dauer && dauerVal) kv.push(["Dauer", dauerVal]);
-  if(n.org){
-    kv.push(["Orgasmus", orgasmAllowed ? "Gestattet":"Nicht gestattet"]);
-    if(orgasmAllowed) kv.push(["Regel", orgasmRule]);
+  const kv = [];
+  if (dueAt) kv.push(["Fällig am", fmtDateTime(dueAt)]);
+  if (note) kv.push(["Bemerkung", note]);
+  if (n.dauer && dauerVal) kv.push(["Dauer", dauerVal]);
+  if (n.org) {
+    kv.push(["Orgasmus", orgasmAllowed ? "Gestattet" : "Nicht gestattet"]);
+    if (orgasmAllowed) kv.push(["Regel", orgasmRule]);
   }
 
-  const kvEl=$("resultKV"); kvEl.innerHTML="";
-  for(const [k,v] of kv){
-    const k1=document.createElement("div"); k1.className="k"; k1.textContent=k+":";
-    const v1=document.createElement("div"); v1.textContent=v;
+  const kvEl = $("resultKV"); kvEl.innerHTML = "";
+  for (const [k, v] of kv) {
+    const k1 = document.createElement("div"); k1.className = "k"; k1.textContent = k + ":";
+    const v1 = document.createElement("div"); v1.textContent = v;
     kvEl.appendChild(k1); kvEl.appendChild(v1);
   }
 
-  $("stepResult").style.display="block";
+  $("stepResult").style.display = "block";
 
-  // ✅ Task speichern (shared) + Parent informieren
-  const taskId = `anja-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+  // ✅ Task in Firebase speichern
   const taskObj = {
-    id: taskId,
+    id: `anja-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
     title: lines.join(" / "),
     note,
     dueAt,
@@ -533,104 +591,121 @@ function buildResult(){
     createdAt: new Date().toISOString()
   };
 
-  const list=getAnjaTasks();
-  list.unshift(taskObj);
-  setAnjaTasks(list);
-
-  try{
-    if(window.parent && window.parent !== window){
-      window.parent.postMessage({ type:"GT_NEW_TASK", payload: taskObj }, "*");
-    }
-  }catch{}
-
+  await saveAnjaTask(taskObj);
   renderTaskStatus();
 
-  if($("pushOnBuild").checked){
+  if ($("pushOnBuild").checked) {
     pushCurrentTask(lines, kv);
   }
 }
 
-function buildCopyText(){
-  const main=$("resultMain").textContent.trim();
-  const kv=$("resultKV");
-  const kids=[...kv.children];
-  const out=["DEINE AUFGABE","",""+main];
-  if(kids.length){
+function buildCopyText() {
+  const main = $("resultMain").textContent.trim();
+  const kv = $("resultKV");
+  const kids = [...kv.children];
+  const out = ["DEINE AUFGABE", "", "" + main];
+  if (kids.length) {
     out.push("");
-    for(let i=0;i<kids.length;i+=2){
-      out.push(`${kids[i].textContent.replace(":","").trim()}: ${kids[i+1].textContent.trim()}`);
+    for (let i = 0; i < kids.length; i += 2) {
+      out.push(`${kids[i].textContent.replace(":", "").trim()}: ${kids[i + 1].textContent.trim()}`);
     }
   }
   return out.join("\n");
 }
 
-function wire(){
-  $("btnReload").onclick=async()=>{ try{await loadCSV(); resetAll(); renderTaskStatus(); showToast("Daten geladen."); notifyParent("GT_REFRESH");}catch(e){setError(String(e.message||e));} };
-  $("btnReset").onclick=()=>{ resetAll(); renderTaskStatus(); };
+function wire() {
+  $("btnReload").onclick = async () => {
+    try {
+      await Promise.all([loadCSV(), loadAnjaTasks()]);
+      resetAll(); renderTaskStatus(); showToast("Daten geladen.");
+      try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "GT_REFRESH" }, "*"); } catch {}
+    } catch (e) { setError(String(e.message || e)); }
+  };
 
-  $("btnNew").onclick=()=>{
-    selection=[]; bereich=null; $("inpDauer").value="";
-    $("inpDue").value=""; $("inpNote").value=""; $("inpCustom").value="";
-    orgasmAllowed=null; orgasmRule=""; $("orgSub").style.display="none";
+  $("btnReset").onclick = () => { resetAll(); renderTaskStatus(); };
+
+  $("btnNew").onclick = () => {
+    selection = []; bereich = null;
+    $("inpDauer").value = ""; $("inpDue").value = ""; $("inpNote").value = ""; $("inpCustom").value = "";
+    orgasmAllowed = null; orgasmRule = "";
+    $("orgSub").style.display = "none";
     $("orgNo").classList.remove("active"); $("orgYes").classList.remove("active");
-    document.querySelectorAll('[data-orgsub]').forEach(b=>b.classList.remove("active"));
-    $("stepResult").style.display="none";
-    if(mode==="Kombination"){ currentType="Kleidung"; renderBereiche(); ["stepItem","stepParams","sep2","sep3"].forEach(id=>$(id).style.display="none"); }
-    else { renderBereiche(); ["stepItem","stepParams","sep2","sep3"].forEach(id=>$(id).style.display="none"); }
+    document.querySelectorAll('[data-orgsub]').forEach(b => b.classList.remove("active"));
+    $("stepResult").style.display = "none";
+    if (mode === "Kombination") {
+      currentType = "Kleidung"; renderBereiche();
+      ["stepItem", "stepParams", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
+    } else {
+      renderBereiche();
+      ["stepItem", "stepParams", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
+    }
     setError(null);
   };
 
-  $("btnBuild").onclick=buildResult;
-  $("btnRandom").onclick=createRandomTaskInRubrik;
+  $("btnBuild").onclick = buildResult;
+  $("btnRandom").onclick = createRandomTaskInRubrik;
 
-  $("btnPushTest").onclick=async()=>{
+  $("btnPushTest").onclick = async () => {
     setError(null);
-    try{ await sendNtfyPush("Testnachricht vom Control Panel", "Push-Test"); showToast("Push-Test gesendet."); }
-    catch(e){ setError(String(e.message||e)); }
+    try { await sendNtfyPush("Testnachricht vom Control Panel", "Push-Test"); showToast("Push-Test gesendet."); }
+    catch (e) { setError(String(e.message || e)); }
   };
 
-  $("pushTopic").onchange=savePushSettings;
-  $("pushToken").onchange=savePushSettings;
-  $("pushOnBuild").onchange=savePushSettings;
+  $("pushTopic").onchange = savePushSettings;
+  $("pushToken").onchange = savePushSettings;
+  $("pushOnBuild").onchange = savePushSettings;
 
-  $("btnCopy").onclick=async()=>{
-    const txt=buildCopyText();
-    try{ await navigator.clipboard.writeText(txt); showToast("Kopiert."); }
-    catch{
-      const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta);
+  $("btnCopy").onclick = async () => {
+    const txt = buildCopyText();
+    try { await navigator.clipboard.writeText(txt); showToast("Kopiert."); }
+    catch {
+      const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta);
       ta.select(); document.execCommand("copy"); ta.remove(); showToast("Kopiert.");
     }
   };
 
-  $("orgNo").onclick=()=>{
-    orgasmAllowed=false; orgasmRule="";
-    $("orgNo").classList.add("active");
-    $("orgYes").classList.remove("active");
-    $("orgSub").style.display="none";
-    document.querySelectorAll('[data-orgsub]').forEach(b=>b.classList.remove("active"));
+  $("orgNo").onclick = () => {
+    orgasmAllowed = false; orgasmRule = "";
+    $("orgNo").classList.add("active"); $("orgYes").classList.remove("active");
+    $("orgSub").style.display = "none";
+    document.querySelectorAll('[data-orgsub]').forEach(b => b.classList.remove("active"));
   };
 
-  $("orgYes").onclick=()=>{
-    orgasmAllowed=true;
-    $("orgYes").classList.add("active");
-    $("orgNo").classList.remove("active");
-    $("orgSub").style.display="block";
+  $("orgYes").onclick = () => {
+    orgasmAllowed = true;
+    $("orgYes").classList.add("active"); $("orgNo").classList.remove("active");
+    $("orgSub").style.display = "block";
   };
 
-  document.querySelectorAll('[data-orgsub]').forEach(b=> b.onclick=()=>{
-    if(orgasmAllowed!==true) return;
-    document.querySelectorAll('[data-orgsub]').forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll('[data-orgsub]').forEach(b => b.onclick = () => {
+    if (orgasmAllowed !== true) return;
+    document.querySelectorAll('[data-orgsub]').forEach(x => x.classList.remove("active"));
     b.classList.add("active");
-    orgasmRule=b.getAttribute("data-orgsub");
+    orgasmRule = b.getAttribute("data-orgsub");
   });
 }
 
-(async()=>{
-  try{ await loadCSV(); wire(); restorePushSettings(); resetAll(); renderTaskStatus(); }
-  catch(e){ wire(); restorePushSettings(); renderTaskStatus(); setError(String(e.message||e)); }
+// ── Init ──
 
-  // damit Status live bleibt (wenn du im Parent Aufgaben annimmst)
-  setInterval(renderTaskStatus, 1000);
+(async () => {
+  wire();
+  restorePushSettings();
+
+  try {
+    await Promise.all([loadCSV(), loadAnjaTasks()]);
+    resetAll();
+    renderTaskStatus();
+  } catch (e) {
+    resetAll();
+    renderTaskStatus();
+    setError(String(e.message || e));
+  }
+
+  // Status alle 30 Sekunden aus Firebase aktualisieren
+  setInterval(async () => {
+    await loadAnjaTasks();
+    renderTaskStatus();
+  }, 30000);
 })();
 </script>
 </body>
