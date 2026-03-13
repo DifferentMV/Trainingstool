@@ -274,13 +274,20 @@ async function upsertAnjaTask(task) {
   }
 }
 
-async function setAnjaTaskStatus(taskId, status) {
+async function setAnjaTaskStatus(taskId, status, feedback = {}) {
   const task = state.anjaTasks.find(t => t.id === taskId);
   if (!task) return;
   task.status = status;
   task.updatedAt = nowISO();
+  if (feedback.rueckmeldung !== undefined) task.rueckmeldung = feedback.rueckmeldung;
+  if (status === "erledigt") task.doneAt = nowISO();
+  if (status === "angenommen") task.acceptedAt = nowISO();
   try {
-    await fbSetAnjaTaskStatus(taskId, task._fbKey, status);
+    const patch = { status, updatedAt: task.updatedAt };
+    if (feedback.rueckmeldung !== undefined) patch.rueckmeldung = feedback.rueckmeldung;
+    if (task.doneAt) patch.doneAt = task.doneAt;
+    if (task.acceptedAt) patch.acceptedAt = task.acceptedAt;
+    await fbPatch(`anja_tasks/${task._fbKey}`, patch);
   } catch (e) {
     console.warn("Firebase Statusfehler:", e);
   }
@@ -854,7 +861,6 @@ function toggleGoalActive(goalId) {
 
 function renderAnjaInbox() {
   const active = state.anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen");
-
   const canExecute = t => !t.dueAt || new Date(t.dueAt) <= new Date();
 
   const cards = active.map(t => {
@@ -869,24 +875,51 @@ function renderAnjaInbox() {
       await setAnjaTaskStatus(t.id, "angenommen"); toast("Aufgabe angenommen."); render();
     }}, ["Annehmen"]);
 
-    const btnDone = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), onclick: async () => {
-      await setAnjaTaskStatus(t.id, "erledigt"); toast("Erledigt."); render();
-    }}, ["Geschafft"]);
-
     const btnAbort = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), onclick: async () => {
       await setAnjaTaskStatus(t.id, "abgebrochen"); toast("Abgebrochen."); render();
     }}, ["Abgebrochen"]);
+
+    // Erledigt-Button öffnet Inline-Formular
+    const feedbackForm = h("div", {
+      class: "feedback-form",
+      style: "display:none; margin-top:10px; display:none; flex-direction:column; gap:8px;"
+    }, []);
+
+    const txtFeedback = h("textarea", {
+      class: "textarea",
+      placeholder: "Rückmeldung (optional) …",
+      style: "min-height:60px; font-size:14px;"
+    }, []);
+
+    const btnSendDone = h("button", { class: "btn", type: "button", onclick: async () => {
+      await setAnjaTaskStatus(t.id, "erledigt", {
+        rueckmeldung: txtFeedback.value.trim(),
+      });
+      toast("Erledigt & Rückmeldung gespeichert.");
+      render();
+    }}, ["✓ Abschicken"]);
+    const btnCancelFeedback = h("button", { class: "btn secondary", type: "button", onclick: () => {
+      feedbackForm.style.display = "none";
+    }}, ["Abbrechen"]);
+
+    feedbackForm.appendChild(txtFeedback);
+    feedbackForm.appendChild(h("div", { class: "row" }, [btnSendDone, btnCancelFeedback]));
+
+    const btnDone = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), onclick: () => {
+      feedbackForm.style.display = feedbackForm.style.display === "none" ? "flex" : "none";
+    }}, ["Erledigt"]);
 
     return h("div", { class: "item" }, [
       h("div", { class: "badge task" }, ["👑"]),
       h("div", { class: "item-main" }, [
         h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
-        h("div", { class: "item-sub" },   [meta]),
+        h("div", { class: "item-sub" }, [meta]),
         h("div", { class: "row", style: "margin-top:10px; gap:10px" }, [
           t.status === "offen" ? btnAccept : null,
           btnDone, btnAbort,
           locked ? h("div", { class: "small" }, ["(gesperrt bis Fälligkeit)"]) : null,
-        ].filter(Boolean))
+        ].filter(Boolean)),
+        feedbackForm,
       ])
     ]);
   });
