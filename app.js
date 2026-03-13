@@ -1,46 +1,109 @@
-/* Glam Trainer — V1.3 (Vanilla JS, GitHub Pages)
-   Storage: localStorage. Push: ntfy.sh.
-   - Startseite (#/nav) als Vorschaltseite
-   - Anja-Aufgaben persistent (shared localStorage) + Status: offen/angenommen/erledigt/abgebrochen
-   - “Fällig am …” sichtbar, aber ausführbar erst ab Zeitpunkt
-   - Bugfix: renderHome wieder korrekt (kein kaputter Block / keine doppelte render()-Definition)
-   - Service Worker: versucht sw.js und service-worker.js
+/* Glam Trainer — V2.0 (Vanilla JS, GitHub Pages)
+   Storage: localStorage (eigene Daten) + Firebase Realtime DB (Anja-Tasks Sync)
+   Push: ntfy.sh
 */
 
+// ═══════════════════════════════════════════════
+// FIREBASE KONFIGURATION
+// ═══════════════════════════════════════════════
+const FIREBASE_URL = "https://ds-trainingstool-default-rtdb.europe-west1.firebasedatabase.app";
+
+async function fbGet(path) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`);
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+async function fbSet(path, value) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value),
+  });
+  return res.ok;
+}
+
+async function fbPush(path, value) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.name; // Firebase-ID
+}
+
+async function fbPatch(path, patch) {
+  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return res.ok;
+}
+
+// ═══════════════════════════════════════════════
+// FIREBASE: Anja-Tasks (shared, geräteübergreifend)
+// ═══════════════════════════════════════════════
+
+async function fbGetAnjaTasks() {
+  const data = await fbGet("anja_tasks");
+  if (!data) return [];
+  // Firebase gibt ein Objekt zurück – wir wandeln in Array um
+  return Object.entries(data).map(([fbKey, task]) => ({ ...task, _fbKey: fbKey }));
+}
+
+async function fbUpsertAnjaTask(task) {
+  // Wenn task hat schon eine Firebase-ID (_fbKey), updaten
+  if (task._fbKey) {
+    const { _fbKey, ...clean } = task;
+    await fbPatch(`anja_tasks/${_fbKey}`, clean);
+    return task._fbKey;
+  }
+  // Sonst neu anlegen
+  const { _fbKey, ...clean } = task;
+  const fbKey = await fbPush("anja_tasks", clean);
+  return fbKey;
+}
+
+async function fbSetAnjaTaskStatus(taskId, fbKey, status) {
+  if (!fbKey) return;
+  await fbPatch(`anja_tasks/${fbKey}`, {
+    status,
+    updatedAt: nowISO(),
+  });
+}
+
+// ═══════════════════════════════════════════════
+// LOKALER STORAGE (nur eigene Daten)
+// ═══════════════════════════════════════════════
+
 const STORAGE = {
-  settings: "gt_settings_v1",
-  tasks: "gt_tasks_v1",
-  goals: "gt_goals_v1",
-  steps: "gt_goal_steps_v1",
-  log: "gt_log_v1",
-  schedule: "gt_schedule_v1",
-
-  // Inbox für dich (Anja-Aufgaben)
-  inbox: "gt_inbox_v1",
-
-  // Shared Task-Liste (für Parent + iframe Control Panel)
-  anjaTasks: "gt_anja_tasks_v1",
-
+  settings:      "gt_settings_v1",
+  tasks:         "gt_tasks_v1",
+  goals:         "gt_goals_v1",
+  steps:         "gt_goal_steps_v1",
+  log:           "gt_log_v1",
+  schedule:      "gt_schedule_v1",
   goalOverrides: "gt_goal_overrides_v1",
 };
 
 const DEFAULT_SETTINGS = {
-  dayMode: "normal", // aussetzen | sanft | normal | herausfordernd
+  dayMode: "normal",
   minGapGoalsMin: 90,
   minGapTasksMin: 45,
   maxUnitsPerBundle: 5,
-
   ntfyGoalsTopic: "",
   ntfyTasksTopic: "",
   ntfyReportTopic: "",
   ntfyToken: "",
-
-  tickSeconds: 20, // Push-Dispatch im offenen Tab
+  tickSeconds: 20,
 };
 
 const $ = (id) => document.getElementById(id);
 
-/* ---------- Utils ---------- */
+// ── Utils ──────────────────────────────────────
 
 function nowISO() { return new Date().toISOString(); }
 
@@ -55,8 +118,7 @@ function fmtTime(d) { return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
 
 function fmtDateTimeLocal(iso) {
   if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("de-DE");
+  return new Date(iso).toLocaleString("de-DE");
 }
 
 function parseTimeToDateToday(hhmm) {
@@ -73,7 +135,6 @@ function randInt(min, max) {
 }
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
 function normId(x) { return String(x || "").trim().toUpperCase(); }
 function normStr(x) { return String(x || "").trim(); }
 
@@ -91,9 +152,7 @@ function loadJSON(key, fallback) {
     const raw = localStorage.getItem(key);
     if (!raw) return fallback;
     return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
+  } catch { return fallback; }
 }
 
 function saveJSON(key, value) {
@@ -102,7 +161,7 @@ function saveJSON(key, value) {
 
 function startOfWeek(d = new Date()) {
   const x = new Date(d);
-  const day = (x.getDay() + 6) % 7; // Mon=0
+  const day = (x.getDay() + 6) % 7;
   x.setDate(x.getDate() - day);
   x.setHours(0, 0, 0, 0);
   return x;
@@ -122,15 +181,12 @@ async function fetchText(url) {
 }
 
 function parseCSV(text) {
-  // simple CSV/; parser (no quoted separators)
   const cleaned = String(text || "").replace(/^\uFEFF/, "");
   const lines = cleaned.split(/\r?\n/).filter(l => l.trim().length);
   if (!lines.length) return [];
-
   const sep = lines[0].includes(";") ? ";" : ",";
   let header = lines.shift().split(sep).map(s => s.trim());
   header[0] = header[0].replace(/^\uFEFF/, "").trim();
-
   return lines.map(line => {
     const parts = line.split(sep).map(s => (s ?? "").trim());
     const row = {};
@@ -151,34 +207,24 @@ function getField(row, aliases, fallback = "") {
   return fallback;
 }
 
-/* ---------- State ---------- */
+// ── State ──────────────────────────────────────
 
 const state = {
-  settings: loadJSON(STORAGE.settings, DEFAULT_SETTINGS),
-
-  tasksData: loadJSON(STORAGE.tasks, []),
-  goalsData: loadJSON(STORAGE.goals, []),
+  settings:       loadJSON(STORAGE.settings, DEFAULT_SETTINGS),
+  tasksData:      loadJSON(STORAGE.tasks, []),
+  goalsData:      loadJSON(STORAGE.goals, []),
   goalsStepsData: loadJSON(STORAGE.steps, []),
-
-  goalOverrides: loadJSON(STORAGE.goalOverrides, {}),
-
-  route: "#/nav",
-  filter: "all", // all | goals | tasks
+  goalOverrides:  loadJSON(STORAGE.goalOverrides, {}),
+  route:          "#/nav",
+  filter:         "all",
+  anjaTasks:      [], // wird von Firebase geladen
 };
 
-function persistSettings() { saveJSON(STORAGE.settings, state.settings); }
-function getLog() { return loadJSON(STORAGE.log, []); }
-function setLog(x) { saveJSON(STORAGE.log, x); }
-
-function getSchedule() { return loadJSON(STORAGE.schedule, null); }
-function setSchedule(x) { saveJSON(STORAGE.schedule, x); }
-
-function getInbox() { return loadJSON(STORAGE.inbox, []); }
-function setInbox(x) { saveJSON(STORAGE.inbox, x); }
-
-function getAnjaTasks() { return loadJSON(STORAGE.anjaTasks, []); }
-function setAnjaTasks(x) { saveJSON(STORAGE.anjaTasks, x); }
-
+function persistSettings()  { saveJSON(STORAGE.settings, state.settings); }
+function getLog()           { return loadJSON(STORAGE.log, []); }
+function setLog(x)          { saveJSON(STORAGE.log, x); }
+function getSchedule()      { return loadJSON(STORAGE.schedule, null); }
+function setSchedule(x)     { saveJSON(STORAGE.schedule, x); }
 function persistOverrides() { saveJSON(STORAGE.goalOverrides, state.goalOverrides); }
 
 function setDayMode(mode) {
@@ -188,7 +234,7 @@ function setDayMode(mode) {
   render();
 }
 
-/* ---------- CSV load ---------- */
+// ── CSV laden ──────────────────────────────────
 
 async function loadAllCSV() {
   const [tasksTxt, goalsTxt, stepsTxt] = await Promise.all([
@@ -196,67 +242,82 @@ async function loadAllCSV() {
     fetchText("goals.csv").catch(() => ""),
     fetchText("goal_uebungen.csv").catch(() => ""),
   ]);
-
-  state.tasksData = tasksTxt ? parseCSV(tasksTxt) : [];
-  state.goalsData = goalsTxt ? parseCSV(goalsTxt) : [];
-  state.goalsStepsData = stepsTxt ? parseCSV(stepsTxt) : [];
-
+  state.tasksData      = tasksTxt  ? parseCSV(tasksTxt)  : [];
+  state.goalsData      = goalsTxt  ? parseCSV(goalsTxt)  : [];
+  state.goalsStepsData = stepsTxt  ? parseCSV(stepsTxt)  : [];
   saveJSON(STORAGE.tasks, state.tasksData);
   saveJSON(STORAGE.goals, state.goalsData);
   saveJSON(STORAGE.steps, state.goalsStepsData);
 }
 
-/* ---------- Goals: Normalisierung + Overrides ---------- */
+// ── Anja Tasks: Firebase-Sync ──────────────────
+
+async function loadAnjaTasks() {
+  try {
+    state.anjaTasks = await fbGetAnjaTasks();
+  } catch (e) {
+    console.warn("Firebase Ladefehler:", e);
+    state.anjaTasks = [];
+  }
+}
+
+async function upsertAnjaTask(task) {
+  try {
+    const fbKey = await fbUpsertAnjaTask(task);
+    // Lokal cachen
+    const idx = state.anjaTasks.findIndex(t => t.id === task.id);
+    if (idx >= 0) state.anjaTasks[idx] = { ...task, _fbKey: fbKey };
+    else state.anjaTasks.unshift({ ...task, _fbKey: fbKey });
+  } catch (e) {
+    console.warn("Firebase Schreibfehler:", e);
+    toast("⚠ Sync-Fehler – Aufgabe nur lokal gespeichert.");
+  }
+}
+
+async function setAnjaTaskStatus(taskId, status) {
+  const task = state.anjaTasks.find(t => t.id === taskId);
+  if (!task) return;
+  task.status = status;
+  task.updatedAt = nowISO();
+  try {
+    await fbSetAnjaTaskStatus(taskId, task._fbKey, status);
+  } catch (e) {
+    console.warn("Firebase Statusfehler:", e);
+  }
+}
+
+// ── Goals Normalisierung ───────────────────────
 
 function normalizeGoalRow(raw) {
-  const ziel_id = normId(getField(raw, ["ziel_id", "id", "ziel", "zielid", "zielId"]));
-  const ziel_name = normStr(getField(raw, ["ziel_name", "name", "titel", "zielname"], "")) || ziel_id;
-
-  const aktivCSV = normalizeBool(getField(raw, ["aktiv", "active"], "false"));
-
-  const aktuelle_stufeCSV = parseInt(getField(raw, ["aktuelle_stufe", "stufe", "level"], "1"), 10) || 1;
-  const max_stufe = parseInt(getField(raw, ["max_stufe", "maxlevel", "stufen_max", "stufe_max"], "5"), 10) || 5;
-
-  const min = parseInt(getField(raw, ["min", "min_pro_zeitraum", "min_zeitraum"], "0"), 10) || 0;
-  const max = parseInt(getField(raw, ["max", "max_pro_zeitraum", "max_zeitraum"], "0"), 10) || 0;
-
-  const zeitraum = normStr(getField(raw, ["zeitraum", "periode"], "TAG")).toUpperCase() === "WOCHE" ? "WOCHE" : "TAG";
-  const modus = normStr(getField(raw, ["modus", "mode"], "flexibel")).toLowerCase();
-
-  const zeit_von = normStr(getField(raw, ["zeit_von", "von"], "14:00"));
-  const zeit_bis = normStr(getField(raw, ["zeit_bis", "bis"], "20:00"));
-  const feste_zeit = normStr(getField(raw, ["feste_zeit", "uhrzeit", "fix"], "09:00"));
-
-  const gewichtung = parseInt(getField(raw, ["gewichtung", "weight"], "1"), 10) || 1;
+  const ziel_id   = normId(getField(raw, ["ziel_id","id","ziel","zielid","zielId"]));
+  const ziel_name = normStr(getField(raw, ["ziel_name","name","titel","zielname"], "")) || ziel_id;
+  const aktivCSV  = normalizeBool(getField(raw, ["aktiv","active"], "false"));
+  const aktuelle_stufeCSV = parseInt(getField(raw, ["aktuelle_stufe","stufe","level"], "1"), 10) || 1;
+  const max_stufe = parseInt(getField(raw, ["max_stufe","maxlevel","stufen_max","stufe_max"], "5"), 10) || 5;
+  const min       = parseInt(getField(raw, ["min","min_pro_zeitraum","min_zeitraum"], "0"), 10) || 0;
+  const max       = parseInt(getField(raw, ["max","max_pro_zeitraum","max_zeitraum"], "0"), 10) || 0;
+  const zeitraum  = normStr(getField(raw, ["zeitraum","periode"], "TAG")).toUpperCase() === "WOCHE" ? "WOCHE" : "TAG";
+  const modus     = normStr(getField(raw, ["modus","mode"], "flexibel")).toLowerCase();
+  const zeit_von  = normStr(getField(raw, ["zeit_von","von"], "14:00"));
+  const zeit_bis  = normStr(getField(raw, ["zeit_bis","bis"], "20:00"));
+  const feste_zeit= normStr(getField(raw, ["feste_zeit","uhrzeit","fix"], "09:00"));
+  const gewichtung= parseInt(getField(raw, ["gewichtung","weight"], "1"), 10) || 1;
 
   const ov = state.goalOverrides[ziel_id] || {};
   const aktiv = (typeof ov.aktiv === "boolean") ? ov.aktiv : aktivCSV;
-
-  const aktuelle_stufe = (typeof ov.aktuelle_stufe === "number")
-    ? ov.aktuelle_stufe
-    : aktuelle_stufeCSV;
+  const aktuelle_stufe = (typeof ov.aktuelle_stufe === "number") ? ov.aktuelle_stufe : aktuelle_stufeCSV;
 
   return {
-    ziel_id,
-    ziel_name,
-    aktiv,
+    ziel_id, ziel_name, aktiv,
     aktuelle_stufe: clamp(aktuelle_stufe, 1, Math.max(1, max_stufe)),
     max_stufe: Math.max(1, max_stufe),
-    min: Math.max(0, min),
-    max: Math.max(0, max),
-    zeitraum,
-    modus,
-    zeit_von,
-    zeit_bis,
-    feste_zeit,
-    gewichtung,
+    min: Math.max(0, min), max: Math.max(0, max),
+    zeitraum, modus, zeit_von, zeit_bis, feste_zeit, gewichtung,
   };
 }
 
 function getGoalsNormalized() {
-  return (state.goalsData || [])
-    .map(normalizeGoalRow)
-    .filter(g => g.ziel_id);
+  return (state.goalsData || []).map(normalizeGoalRow).filter(g => g.ziel_id);
 }
 
 function setGoalOverride(goalId, patch) {
@@ -265,46 +326,33 @@ function setGoalOverride(goalId, patch) {
   persistOverrides();
 }
 
-/* ---------- Quota ---------- */
+// ── Quota ──────────────────────────────────────
 
 function countGoalDoneThisPeriod(goalId, period) {
   const gid = normId(goalId);
   const log = getLog();
-
   if (period === "TAG") {
     const t = todayKey();
-    return log.filter(e =>
-      e.typ === "ziel" &&
-      normId(e.ziel_id) === gid &&
-      e.status === "erledigt" &&
-      e.dayKey === t
-    ).length;
+    return log.filter(e => e.typ === "ziel" && normId(e.ziel_id) === gid && e.status === "erledigt" && e.dayKey === t).length;
   }
-
-  return log.filter(e =>
-    e.typ === "ziel" &&
-    normId(e.ziel_id) === gid &&
-    e.status === "erledigt" &&
-    inThisWeek(e.createdAt)
-  ).length;
+  return log.filter(e => e.typ === "ziel" && normId(e.ziel_id) === gid && e.status === "erledigt" && inThisWeek(e.createdAt)).length;
 }
 
 function computeGoalQuota(goal) {
   const period = goal.zeitraum === "WOCHE" ? "WOCHE" : "TAG";
-  const min = parseInt(goal.min || "0", 10) || 0;
-  const max = parseInt(goal.max || "0", 10) || 0;
-  const done = countGoalDoneThisPeriod(goal.ziel_id, period);
+  const min    = parseInt(goal.min || "0", 10) || 0;
+  const max    = parseInt(goal.max || "0", 10) || 0;
+  const done   = countGoalDoneThisPeriod(goal.ziel_id, period);
   return { period, min, max, done };
 }
 
-/* ---------- Schedule generation (Goals core) ---------- */
+// ── Schedule ───────────────────────────────────
 
 function pickRandomTimeBetween(fromHHMM, toHHMM) {
   const from = parseTimeToDateToday(fromHHMM);
-  const to = parseTimeToDateToday(toHHMM);
+  const to   = parseTimeToDateToday(toHHMM);
   if (!from || !to || to <= from) return null;
-  const t = from.getTime() + Math.random() * (to.getTime() - from.getTime());
-  return new Date(t);
+  return new Date(from.getTime() + Math.random() * (to.getTime() - from.getTime()));
 }
 
 function ensureMinGap(sortedDates, candidate, minGapMinutes) {
@@ -317,45 +365,32 @@ function ensureMinGap(sortedDates, candidate, minGapMinutes) {
 
 function generateGoalUnitsForToday(activeGoals) {
   const mode = state.settings.dayMode;
-  if (mode === "aussetzen") return [];
-  if (!activeGoals.length) return [];
+  if (mode === "aussetzen" || !activeGoals.length) return [];
 
   const units = [];
-
   for (const g of activeGoals) {
     const { period, min, max, done } = computeGoalQuota(g);
     if (max > 0 && done >= max) continue;
-
     let want = 0;
-
     if (period === "TAG") {
       const minAdj = mode === "sanft" ? Math.min(min, 1) : min;
       const baseMax = (max > 0) ? max : (min > 0 ? min : 1);
-      const maxAdj = (mode === "sanft") ? Math.min(baseMax, 1) : baseMax;
-
-      const minUse = Math.max(0, minAdj);
-      const maxUse = Math.max(minUse, maxAdj);
-
+      const maxAdj = mode === "sanft" ? Math.min(baseMax, 1) : baseMax;
+      const minUse = Math.max(0, minAdj), maxUse = Math.max(minUse, maxAdj);
       want = (maxUse === 0 && minUse === 0) ? 0 : randInt(minUse, maxUse);
     } else {
       if (done < min) want = 1;
       else if (max > 0 && done < max) {
-        const p = (mode === "sanft") ? 0.25 : (mode === "herausfordernd" ? 0.55 : 0.4);
+        const p = mode === "sanft" ? 0.25 : mode === "herausfordernd" ? 0.55 : 0.4;
         want = Math.random() < p ? 1 : 0;
       }
     }
-
     for (let i = 0; i < want; i++) {
       units.push({
         id: `goalunit-${g.ziel_id}-${todayKey()}-${i}-${Math.floor(Math.random() * 100000)}`,
-        typ: "ziel",
-        ziel_id: g.ziel_id,
-        ziel_name: g.ziel_name,
+        typ: "ziel", ziel_id: g.ziel_id, ziel_name: g.ziel_name,
         stufe: clamp(g.aktuelle_stufe, 1, g.max_stufe),
-        plannedAt: null,
-        plannedLabel: "",
-        status: "geplant",
-        createdAt: nowISO(),
+        plannedAt: null, plannedLabel: "", status: "geplant", createdAt: nowISO(),
       });
     }
   }
@@ -364,162 +399,98 @@ function generateGoalUnitsForToday(activeGoals) {
   for (const u of units) {
     const g = activeGoals.find(x => normId(x.ziel_id) === normId(u.ziel_id));
     if (!g) continue;
-
-    let dt = null;
-    if (g.modus === "ritualisiert") dt = parseTimeToDateToday(g.feste_zeit) || new Date();
-    else dt = pickRandomTimeBetween(g.zeit_von, g.zeit_bis) || new Date();
-
+    let dt = g.modus === "ritualisiert" ? parseTimeToDateToday(g.feste_zeit) || new Date() : pickRandomTimeBetween(g.zeit_von, g.zeit_bis) || new Date();
     const softGap = Math.max(10, Math.floor(state.settings.minGapGoalsMin / 2));
     let tries = 0;
     while (tries < 12 && !ensureMinGap(plannedDates, dt, softGap)) {
       dt = new Date(dt.getTime() + randInt(8, 22) * 60 * 1000);
       tries++;
     }
-
     plannedDates.push(dt);
     plannedDates.sort((a, b) => a - b);
-
     u.plannedAt = dt.toISOString();
     u.plannedLabel = fmtTime(dt);
   }
-
   units.sort((a, b) => new Date(a.plannedAt) - new Date(b.plannedAt));
   return units;
 }
 
 function cleanScheduleUnits(schedule, activeGoalIdsSet) {
   if (!schedule?.units?.length) return schedule;
-
   const before = schedule.units.length;
-  schedule.units = schedule.units.filter(u => {
-    if (u.typ !== "ziel") return true;
-    return activeGoalIdsSet.has(normId(u.ziel_id));
-  });
-
-  if (activeGoalIdsSet.size === 0) {
-    schedule.units = schedule.units.filter(u => u.typ !== "ziel");
-  }
-
-  const after = schedule.units.length;
-  schedule._cleaned = (before !== after);
+  schedule.units = schedule.units.filter(u => u.typ !== "ziel" || activeGoalIdsSet.has(normId(u.ziel_id)));
+  if (activeGoalIdsSet.size === 0) schedule.units = schedule.units.filter(u => u.typ !== "ziel");
+  schedule._cleaned = (before !== schedule.units.length);
   return schedule;
 }
 
 function regenIfNeeded(force = false) {
   const t = todayKey();
   const activeGoals = getGoalsNormalized().filter(g => g.aktiv === true);
-  const activeIds = new Set(activeGoals.map(g => normId(g.ziel_id)));
-
+  const activeIds   = new Set(activeGoals.map(g => normId(g.ziel_id)));
   let schedule = getSchedule();
-
   if (schedule && schedule.dayKey === t) {
     schedule = cleanScheduleUnits(schedule, activeIds);
-    if (schedule._cleaned) {
-      delete schedule._cleaned;
-      setSchedule(schedule);
-    }
+    if (schedule._cleaned) { delete schedule._cleaned; setSchedule(schedule); }
     if (!force) return;
   }
-
-  const units = generateGoalUnitsForToday(activeGoals);
-
-  const newSchedule = {
-    dayKey: t,
-    createdAt: nowISO(),
-    lastPushAtGoals: schedule?.lastPushAtGoals || null,
-    units,
-  };
-
-  setSchedule(newSchedule);
+  setSchedule({ dayKey: t, createdAt: nowISO(), lastPushAtGoals: schedule?.lastPushAtGoals || null, units: generateGoalUnitsForToday(activeGoals) });
 }
 
-/* ---------- Goal exercises ---------- */
+// ── Goal exercises ─────────────────────────────
 
 function pickExerciseForGoal(goalId, stufe) {
   const gid = normId(goalId);
   const lvl = parseInt(stufe || "1", 10) || 1;
-
   const rows = (state.goalsStepsData || []).map(r => ({
     ziel_id: normId(r.ziel_id || r.goal_id || r.ziel || ""),
     stufe: parseInt(r.stufe || "1", 10) || 1,
     titel: String(r.titel || r.uebung || "").trim(),
     klasse: String(r.klasse || "").trim(),
   })).filter(x => x.ziel_id && x.titel);
-
   const list = rows.filter(x => x.ziel_id === gid && x.stufe === lvl);
   if (!list.length) return null;
-
   return list[Math.floor(Math.random() * list.length)];
 }
 
-/* ---------- Push (ntfy) ---------- */
+// ── Push (ntfy) ────────────────────────────────
 
 async function sendNtfy(topic, token, message, title) {
   if (!topic) return false;
-  const headers = {
-    "Content-Type": "text/plain; charset=utf-8",
-    "Title": title || "Glam Trainer",
-    "Priority": "default",
-    "Tags": "bell",
-  };
+  const headers = { "Content-Type": "text/plain; charset=utf-8", "Title": title || "Glam Trainer", "Priority": "default", "Tags": "bell" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-
-  const res = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`, {
-    method: "POST",
-    headers,
-    body: message,
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Push fehlgeschlagen (${res.status}): ${txt.slice(0, 140)}`);
-  }
+  const res = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`, { method: "POST", headers, body: message });
+  if (!res.ok) { const txt = await res.text(); throw new Error(`Push fehlgeschlagen (${res.status}): ${txt.slice(0, 140)}`); }
   return true;
 }
 
 function canSendPush(lastISO, minGapMinutes) {
   if (!lastISO) return true;
-  const last = new Date(lastISO).getTime();
-  return (Date.now() - last) >= minGapMinutes * 60 * 1000;
+  return (Date.now() - new Date(lastISO).getTime()) >= minGapMinutes * 60 * 1000;
 }
 
 async function maybeDispatchPushes() {
   const schedule = getSchedule();
   if (!schedule || schedule.dayKey !== todayKey()) return;
-
   const settings = state.settings;
   const now = new Date();
-
-  const due = (schedule.units || []).filter(u =>
-    u.status === "geplant" &&
-    u.plannedAt &&
-    new Date(u.plannedAt) <= now
-  );
-  if (!due.length) return;
-
-  if (!canSendPush(schedule.lastPushAtGoals, settings.minGapGoalsMin)) return;
-
+  const due = (schedule.units || []).filter(u => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) <= now);
+  if (!due.length || !canSendPush(schedule.lastPushAtGoals, settings.minGapGoalsMin)) return;
   const show = due.slice(0, settings.maxUnitsPerBundle);
   const more = due.length - show.length;
-
-  const lines = [];
-  lines.push(`Trainingseinheiten fällig: ${due.length}`);
-  lines.push("");
+  const lines = [`Trainingseinheiten fällig: ${due.length}`, ""];
   show.forEach(u => lines.push(`• ${u.ziel_name} – Stufe ${u.stufe}`));
   if (more > 0) lines.push(`… +${more} weitere`);
-  lines.push("");
-  lines.push("Öffne die App.");
-
+  lines.push("", "Öffne die App.");
   try {
     await sendNtfy(settings.ntfyGoalsTopic, settings.ntfyToken, lines.join("\n"), "Training fällig");
     schedule.lastPushAtGoals = nowISO();
     setSchedule(schedule);
     toast("Push gesendet.");
-  } catch (e) {
-    console.warn(e);
-  }
+  } catch (e) { console.warn(e); }
 }
 
-/* ---------- Log + completion + progression ---------- */
+// ── Log + Completion + Progression ────────────
 
 function addLogEntry(entry) {
   const log = getLog();
@@ -530,67 +501,43 @@ function addLogEntry(entry) {
 function completeUnit(unitId, result) {
   const schedule = getSchedule();
   if (!schedule) return;
-
   const idx = (schedule.units || []).findIndex(u => u.id === unitId);
   if (idx < 0) return;
-
   const u = schedule.units[idx];
-  u.status = result.status; // erledigt | abgebrochen
+  u.status = result.status;
   u.doneAt = nowISO();
   setSchedule(schedule);
-
   addLogEntry({
     id: `log-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-    typ: u.typ,
-    dayKey: schedule.dayKey,
-    createdAt: nowISO(),
-    ziel_id: u.ziel_id,
-    ziel_name: u.ziel_name,
-    stufe: u.stufe,
-    uebung: result.uebungText || "",
-    status: result.status,
-    rueckmeldung: result.rueckmeldung || "",
-    gern: result.gern || null,
-    notiz: result.notiz || "",
-    plannedLabel: u.plannedLabel || "",
+    typ: u.typ, dayKey: schedule.dayKey, createdAt: nowISO(),
+    ziel_id: u.ziel_id, ziel_name: u.ziel_name, stufe: u.stufe,
+    uebung: result.uebungText || "", status: result.status,
+    rueckmeldung: result.rueckmeldung || "", gern: result.gern || null,
+    notiz: result.notiz || "", plannedLabel: u.plannedLabel || "",
   });
-
   if (u.typ === "ziel") applyProgression(u.ziel_id);
 }
 
 function applyProgression(goalId) {
   const gid = normId(goalId);
   const logs = getLog().filter(e => e.typ === "ziel" && normId(e.ziel_id) === gid);
-
   const last2 = logs.slice(0, 2);
   const consecAbort = last2.length === 2 && last2.every(x => x.status === "abgebrochen");
-
-  const last7 = logs.slice(0, 7);
-  const aborts = last7.filter(x => x.status === "abgebrochen").length;
-
+  const aborts = logs.slice(0, 7).filter(x => x.status === "abgebrochen").length;
   const goal = getGoalsNormalized().find(g => normId(g.ziel_id) === gid);
   if (!goal) return;
-
-  const cur = goal.aktuelle_stufe;
-  const maxStufe = goal.max_stufe;
-
+  const cur = goal.aktuelle_stufe, maxStufe = goal.max_stufe;
   let newStufe = cur;
-
   if (consecAbort || aborts >= 3) {
     newStufe = Math.max(1, cur - 1);
   } else {
-    const onLevel = logs.filter(e => Number(e.stufe) === cur);
-    const success = onLevel.filter(e => e.status === "erledigt");
+    const success = logs.filter(e => Number(e.stufe) === cur && e.status === "erledigt");
     if (success.length >= 5) {
       let points = 0;
-      for (const s of success) {
-        if (s.rueckmeldung === "leicht") points += 2;
-        else if (s.rueckmeldung === "okay") points += 1;
-      }
+      for (const s of success) { if (s.rueckmeldung === "leicht") points += 2; else if (s.rueckmeldung === "okay") points += 1; }
       if (points >= 6) newStufe = Math.min(maxStufe, cur + 1);
     }
   }
-
   if (newStufe !== cur) {
     setGoalOverride(gid, { aktuelle_stufe: newStufe });
     toast(newStufe > cur ? "Nächste Stufe freigeschaltet." : "Eine Stufe zurück (sanft).");
@@ -599,54 +546,11 @@ function applyProgression(goalId) {
   }
 }
 
-/* ---------- Anja Tasks (shared storage) ---------- */
-
-function upsertAnjaTask(task) {
-  const list = getAnjaTasks();
-  const idx = list.findIndex(t => t.id === task.id);
-  if (idx >= 0) list[idx] = { ...list[idx], ...task };
-  else list.unshift(task);
-  setAnjaTasks(list);
-
-  // Inbox in deiner Sicht (nur wenn neu)
-  const inbox = getInbox();
-  const exists = inbox.some(x => x.id === task.id);
-  if (!exists) {
-    inbox.unshift({
-      id: task.id,
-      title: task.title,
-      note: task.note || "",
-      dueAt: task.dueAt || "",
-      status: task.status || "offen",
-      createdAt: task.createdAt || nowISO(),
-      source: "anja",
-    });
-    setInbox(inbox);
-  }
-}
-
-function setAnjaTaskStatus(taskId, status) {
-  const list = getAnjaTasks();
-  const idx = list.findIndex(t => t.id === taskId);
-  if (idx < 0) return;
-  list[idx].status = status;
-  list[idx].updatedAt = nowISO();
-  setAnjaTasks(list);
-
-  const inbox = getInbox();
-  const j = inbox.findIndex(x => x.id === taskId);
-  if (j >= 0) {
-    inbox[j].status = status;
-    setInbox(inbox);
-  }
-}
-
-/* ---------- UI helpers ---------- */
+// ── UI Helpers ─────────────────────────────────
 
 function setActiveNav(route) {
   document.querySelectorAll(".navbtn").forEach(b => {
-    const r = b.getAttribute("data-route");
-    b.classList.toggle("active", route.startsWith(r));
+    b.classList.toggle("active", route.startsWith(b.getAttribute("data-route")));
   });
 }
 
@@ -659,9 +563,8 @@ function h(tag, attrs = {}, children = []) {
     else el.setAttribute(k, v);
   }
   (children || []).forEach(c => {
-    if (c === null || c === undefined) return;
-    if (typeof c === "string") el.appendChild(document.createTextNode(c));
-    else el.appendChild(c);
+    if (c == null) return;
+    el.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
   });
   return el;
 }
@@ -678,78 +581,57 @@ function chip(label, active, onClick) {
 }
 
 function openModal(contentEl) {
-  const backdrop = h("div", { class: "modal-backdrop" }, [
-    h("div", { class: "modal" }, [contentEl])
-  ]);
+  const backdrop = h("div", { class: "modal-backdrop" }, [h("div", { class: "modal" }, [contentEl])]);
   backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
   document.body.appendChild(backdrop);
   return () => backdrop.remove();
 }
 
-/* ---------- Unit detail modal (Goals) ---------- */
+// ── Unit Detail Modal ──────────────────────────
 
 function unitDetailModal(unit) {
   const schedule = getSchedule();
   const u = schedule?.units?.find(x => x.id === unit.id) || unit;
-
-  let exercise = null;
-  if (u.typ === "ziel") exercise = pickExerciseForGoal(u.ziel_id, u.stufe);
-
+  const exercise = u.typ === "ziel" ? pickExerciseForGoal(u.ziel_id, u.stufe) : null;
   const title = u.typ === "ziel" ? `🎯 Trainingseinheit` : `🧩 Aufgabe`;
-  const main = u.typ === "ziel"
-    ? `${u.ziel_name} – Stufe ${u.stufe}\n\n${exercise?.titel ? "Übung: " + exercise.titel : "Keine Übung in goal_uebungen.csv gefunden."}`
+  const main  = u.typ === "ziel"
+    ? `${u.ziel_name} – Stufe ${u.stufe}\n\n${exercise?.titel ? "Übung: " + exercise.titel : "Keine Übung gefunden."}`
     : (u.title || u.aufgabe || "");
 
-  const closeBtn = h("button", { class: "modal-close", type: "button" }, ["✕"]);
-  const header = h("div", { class: "modal-header" }, [
-    h("div", { class: "modal-title" }, [title]),
-    closeBtn
-  ]);
-
-  const statusRow = h("div", { class: "row" }, [
-    h("button", { class: "btn secondary", type: "button", id: "btnDone" }, ["Geschafft"]),
+  const closeBtn   = h("button", { class: "modal-close", type: "button" }, ["✕"]);
+  const statusRow  = h("div", { class: "row" }, [
+    h("button", { class: "btn secondary", type: "button", id: "btnDone" },  ["Geschafft"]),
     h("button", { class: "btn secondary", type: "button", id: "btnAbort" }, ["Abgebrochen"]),
   ]);
-
   const feedbackRow = h("div", { class: "row", style: "margin-top:8px" }, [
     h("button", { class: "btn secondary", type: "button", id: "fb1" }, ["leicht"]),
     h("button", { class: "btn secondary", type: "button", id: "fb2" }, ["okay"]),
     h("button", { class: "btn secondary", type: "button", id: "fb3" }, ["schwer"]),
   ]);
-
   const gernSel = h("select", { class: "select", id: "gernSel" }, [
     h("option", { value: "" }, ["Gern gemacht? (optional)"]),
-    ...[1, 2, 3, 4, 5].map(n => h("option", { value: String(n) }, [String(n)]))
+    ...[1,2,3,4,5].map(n => h("option", { value: String(n) }, [String(n)]))
   ]);
-
-  const note = h("textarea", { class: "textarea", id: "note", placeholder: "Notiz (optional)" }, []);
-
+  const note    = h("textarea", { class: "textarea", id: "note", placeholder: "Notiz (optional)" }, []);
   const btnSave = h("button", { class: "btn", type: "button" }, ["Speichern"]);
-  const btnDelete = h("button", { class: "btn danger", type: "button" }, ["Eintrag löschen"]);
-  const btnClose = h("button", { class: "btn secondary", type: "button" }, ["Zurück"]);
-
-  const footer = h("div", { class: "row", style: "margin-top:10px" }, [btnSave, btnClose, btnDelete]);
+  const btnDel  = h("button", { class: "btn danger", type: "button" }, ["Eintrag löschen"]);
+  const btnClose= h("button", { class: "btn secondary", type: "button" }, ["Zurück"]);
 
   const body = h("div", {}, [
-    header,
+    h("div", { class: "modal-header" }, [h("div", { class: "modal-title" }, [title]), closeBtn]),
     h("div", { class: "hr" }, []),
     h("div", { class: "small" }, [u.plannedLabel ? `Geplant: ${u.plannedLabel}` : ""]),
     h("div", { style: "white-space:pre-line; font-size:16px; font-weight:800; margin-top:8px" }, [main]),
     h("div", { class: "hr" }, []),
     h("div", { class: "small" }, ["Rückmeldung (für Ziele empfohlen):"]),
-    statusRow,
-    feedbackRow,
-    gernSel,
-    note,
-    footer,
+    statusRow, feedbackRow, gernSel, note,
+    h("div", { class: "row", style: "margin-top:10px" }, [btnSave, btnClose, btnDel]),
   ]);
 
   const close = openModal(body);
-  closeBtn.onclick = close;
-  btnClose.onclick = close;
+  closeBtn.onclick = close; btnClose.onclick = close;
 
-  let chosenStatus = null;
-  let rueck = null;
+  let chosenStatus = null, rueck = null;
 
   function setBtnActive(btn) {
     [body.querySelector("#btnDone"), body.querySelector("#btnAbort")].forEach(b => b.classList.remove("active"));
@@ -760,61 +642,40 @@ function unitDetailModal(unit) {
     btn.classList.add("active");
   }
 
-  body.querySelector("#btnDone").onclick = () => { chosenStatus = "erledigt"; setBtnActive(body.querySelector("#btnDone")); };
+  body.querySelector("#btnDone").onclick  = () => { chosenStatus = "erledigt";    setBtnActive(body.querySelector("#btnDone")); };
   body.querySelector("#btnAbort").onclick = () => { chosenStatus = "abgebrochen"; setBtnActive(body.querySelector("#btnAbort")); };
-
-  body.querySelector("#fb1").onclick = () => { rueck = "leicht"; setFbActive(body.querySelector("#fb1")); };
-  body.querySelector("#fb2").onclick = () => { rueck = "okay"; setFbActive(body.querySelector("#fb2")); };
-  body.querySelector("#fb3").onclick = () => { rueck = "schwer"; setFbActive(body.querySelector("#fb3")); };
+  body.querySelector("#fb1").onclick      = () => { rueck = "leicht"; setFbActive(body.querySelector("#fb1")); };
+  body.querySelector("#fb2").onclick      = () => { rueck = "okay";   setFbActive(body.querySelector("#fb2")); };
+  body.querySelector("#fb3").onclick      = () => { rueck = "schwer"; setFbActive(body.querySelector("#fb3")); };
 
   btnSave.onclick = () => {
     if (!chosenStatus) { toast("Bitte: Geschafft oder Abgebrochen wählen."); return; }
-    if (u.typ === "ziel" && !rueck) { toast("Bitte Rückmeldung wählen (leicht/okay/schwer)."); return; }
-
+    if (u.typ === "ziel" && !rueck) { toast("Bitte Rückmeldung wählen."); return; }
     completeUnit(u.id, {
-      status: chosenStatus,
-      rueckmeldung: rueck || "",
+      status: chosenStatus, rueckmeldung: rueck || "",
       gern: body.querySelector("#gernSel").value ? parseInt(body.querySelector("#gernSel").value, 10) : null,
       notiz: body.querySelector("#note").value.trim(),
       uebungText: exercise?.titel || "",
     });
-
-    close();
-    render();
+    close(); render();
   };
 
-  btnDelete.onclick = () => {
-    const schedule = getSchedule();
-    if (!schedule) return;
-    const idx = (schedule.units || []).findIndex(x => x.id === u.id);
-    if (idx >= 0) {
-      schedule.units.splice(idx, 1);
-      setSchedule(schedule);
-      toast("Gelöscht.");
-      close();
-      render();
-    }
+  btnDel.onclick = () => {
+    const s = getSchedule(); if (!s) return;
+    const i = (s.units || []).findIndex(x => x.id === u.id);
+    if (i >= 0) { s.units.splice(i, 1); setSchedule(s); toast("Gelöscht."); close(); render(); }
   };
 }
 
-/* ---------- Views ---------- */
+// ── Views ──────────────────────────────────────
 
 function listItemCard(unit) {
-  const badgeClass = unit.typ === "ziel" ? "badge goal" : "badge task";
-  const badgeIcon = unit.typ === "ziel" ? "🎯" : "🧩";
-  const title = unit.typ === "ziel"
-    ? `${unit.ziel_name} – Stufe ${unit.stufe}`
-    : `${unit.title || unit.aufgabe || "Aufgabe"}`;
-
-  const sub = unit.typ === "ziel"
-    ? "Übung: (wird beim Öffnen gewählt)"
-    : (unit.rubrik ? `Rubrik: ${unit.rubrik}` : "");
-
+  const isGoal = unit.typ === "ziel";
   return h("div", { class: "item" }, [
-    h("div", { class: badgeClass }, [badgeIcon]),
+    h("div", { class: "badge " + (isGoal ? "goal" : "task") }, [isGoal ? "🎯" : "🧩"]),
     h("div", { class: "item-main" }, [
-      h("div", { class: "item-title" }, [title]),
-      h("div", { class: "item-sub" }, [sub]),
+      h("div", { class: "item-title" }, [isGoal ? `${unit.ziel_name} – Stufe ${unit.stufe}` : (unit.title || unit.aufgabe || "Aufgabe")]),
+      h("div", { class: "item-sub" },   [isGoal ? "Übung: (wird beim Öffnen gewählt)" : (unit.rubrik ? `Rubrik: ${unit.rubrik}` : "")]),
       h("div", { class: "row", style: "margin-top:10px; gap:10px" }, [
         h("button", { class: "btn secondary", type: "button", onclick: () => unitDetailModal(unit) }, ["Öffnen"])
       ])
@@ -840,17 +701,15 @@ function moduleTile(icon, title, lines, btnText, onClick) {
 function goalsSummaryText() {
   const goals = getGoalsNormalized().filter(g => g.aktiv);
   if (!goals.length) return "Aktiv: 0\nKeine aktiven Ziele.";
-
-  const lines = goals.slice(0, 3).map(g => `${g.ziel_name} – Stufe ${g.aktuelle_stufe}/${g.max_stufe}`);
-  return `Aktiv: ${goals.length}\n` + lines.join("\n");
+  return `Aktiv: ${goals.length}\n` + goals.slice(0, 3).map(g => `${g.ziel_name} – Stufe ${g.aktuelle_stufe}/${g.max_stufe}`).join("\n");
 }
 
 function tasksSummaryText() {
-  const inboxOpen = getInbox().filter(x => (x.source === "anja") && (x.status === "offen" || x.status === "angenommen")).length;
-  return `Inbox (Anja): ${inboxOpen}\nOptional: Aufgaben sind lustbasiert.`;
+  const open = state.anjaTasks.filter(x => x.status === "offen" || x.status === "angenommen").length;
+  return `Inbox (Anja): ${open}\nOptional: Aufgaben sind lustbasiert.`;
 }
 
-/* ---------- Start / Nav ---------- */
+// ── Nav ────────────────────────────────────────
 
 function renderNav() {
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
@@ -859,46 +718,46 @@ function renderNav() {
       h("div", { class: "small" }, ["Wähle, welchen Bereich du öffnen willst."]),
       h("div", { class: "hr" }, []),
       h("div", { class: "grid2" }, [
-        moduleTile("🜂", "Trainer", "Ziele, Trainings, Log & Settings.", "Öffnen", () => { location.hash = "#/home"; }),
+        moduleTile("🜂", "Trainer",              "Ziele, Trainings, Log & Settings.", "Öffnen", () => { location.hash = "#/home"; }),
         moduleTile("👑", "Anja — Control Panel", "Anjas Aufgaben/Kleidung/Kombination.", "Öffnen", () => { location.hash = "#/anja"; }),
       ]),
     ]),
   ]);
 }
 
-/* ---------- Anja (iframe) ---------- */
+// ── Anja View ──────────────────────────────────
 
 function renderAnja() {
   const btnBack = h("button", { class: "btn secondary", type: "button", onclick: () => { location.hash = "#/nav"; } }, ["Zur Startauswahl"]);
+  const tasks  = state.anjaTasks;
+  const open   = tasks.filter(t => t.status === "offen").length;
+  const accepted = tasks.filter(t => t.status === "angenommen").length;
 
-  const statusCard = (() => {
-    const tasks = getAnjaTasks();
-    const open = tasks.filter(t => t.status === "offen").length;
-    const accepted = tasks.filter(t => t.status === "angenommen").length;
+  const sample = tasks
+    .filter(t => t.status === "offen" || t.status === "angenommen")
+    .slice(0, 3)
+    .map(t => h("div", { class: "item" }, [
+      h("div", { class: "badge task" }, ["🧾"]),
+      h("div", { class: "item-main" }, [
+        h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
+        h("div", { class: "item-sub" }, [[`Status: ${t.status}`, t.dueAt ? `Fällig am: ${fmtDateTimeLocal(t.dueAt)}` : ""].filter(Boolean).join("\n")]),
+      ])
+    ]));
 
-    const sample = tasks
-      .filter(t => t.status === "offen" || t.status === "angenommen")
-      .slice(0, 3)
-      .map(t => {
-        const line1 = t.title || "Aufgabe";
-        const line2 = `Status: ${t.status}`;
-        const line3 = t.dueAt ? `Fällig am: ${fmtDateTimeLocal(t.dueAt)}` : "";
-        return h("div", { class: "item" }, [
-          h("div", { class: "badge task" }, ["🧾"]),
-          h("div", { class: "item-main" }, [
-            h("div", { class: "item-title" }, [line1]),
-            h("div", { class: "item-sub" }, [[line2, line3].filter(Boolean).join("\n")]),
-          ])
-        ]);
-      });
+  const statusCard = h("div", { class: "card" }, [
+    sectionTitle("📌", "Status", null),
+    h("div", { class: "small" }, [`Offen: ${open} · Angenommen: ${accepted}`]),
+    h("div", { class: "hr" }, []),
+    sample.length ? h("div", { class: "list" }, sample) : h("div", { class: "small" }, ["Noch keine Aufgaben."])
+  ]);
 
-    return h("div", { class: "card" }, [
-      sectionTitle("📌", "Status", null),
-      h("div", { class: "small" }, [`Offen: ${open} · Angenommen: ${accepted}`]),
-      h("div", { class: "hr" }, []),
-      sample.length ? h("div", { class: "list" }, sample) : h("div", { class: "small" }, ["Noch keine Aufgaben."])
-    ]);
-  })();
+  // Sync-Button
+  const btnSync = h("button", { class: "btn secondary", type: "button", onclick: async () => {
+    toast("Lade…");
+    await loadAnjaTasks();
+    render();
+    toast("Aktualisiert.");
+  }}, ["🔄 Aktualisieren"]);
 
   const iframe = h("iframe", {
     src: "control_panel.html",
@@ -909,94 +768,75 @@ function renderAnja() {
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
       sectionTitle("👑", "Anja — Control Panel", btnBack),
-      h("div", { class: "small" }, [
-        "Aufgaben werden gespeichert (offen/angenommen/erledigt). Du siehst sie unter „Aufgaben“."
-      ]),
+      h("div", { class: "small" }, ["Aufgaben werden in der Cloud gespeichert – beide Geräte sehen dieselben Daten."]),
+      btnSync,
     ]),
     statusCard,
     h("div", { class: "card" }, [
       h("div", { style: "font-weight:900; font-size:16px; margin-bottom:8px" }, ["Control Panel"]),
-      h("div", { class: "small" }, ["(eingebettet)"]),
       h("div", { class: "hr" }, []),
       iframe,
     ]),
   ]);
 }
 
-/* ---------- Home (Trainer) ---------- */
+// ── Home ───────────────────────────────────────
 
 function renderHome() {
   regenIfNeeded(false);
-
   const schedule = getSchedule();
   const units = schedule?.units || [];
   const now = new Date();
-
-  const due = units.filter(u => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) <= now);
+  const due     = units.filter(u => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) <= now);
   const planned = units.filter(u => u.status === "geplant" && u.plannedAt && new Date(u.plannedAt) > now);
 
   const filtered = (arr) => {
-    if (state.filter === "all") return arr;
     if (state.filter === "goals") return arr.filter(x => x.typ === "ziel");
     if (state.filter === "tasks") return arr.filter(x => x.typ === "aufgabe");
     return arr;
   };
 
   const chips = h("div", { class: "chips" }, [
-    chip("Alle", state.filter === "all", () => { state.filter = "all"; render(); }),
-    chip("🎯 Ziele", state.filter === "goals", () => { state.filter = "goals"; render(); }),
-    chip("🧩 Aufgaben", state.filter === "tasks", () => { state.filter = "tasks"; render(); }),
+    chip("Alle",       state.filter === "all",   () => { state.filter = "all";   render(); }),
+    chip("🎯 Ziele",   state.filter === "goals", () => { state.filter = "goals"; render(); }),
+    chip("🧩 Aufgaben",state.filter === "tasks", () => { state.filter = "tasks"; render(); }),
   ]);
-
-  const dueList = h("div", { class: "list" }, filtered(due).map(listItemCard));
-  const plannedList = h("div", { class: "list" }, filtered(planned).map(listItemCard));
 
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
       sectionTitle("🔔", "Jetzt fällig", chips),
-      filtered(due).length ? dueList : h("div", { class: "small" }, ["Keine Einheiten fällig."])
+      filtered(due).length ? h("div", { class: "list" }, filtered(due).map(listItemCard)) : h("div", { class: "small" }, ["Keine Einheiten fällig."])
     ]),
     h("div", { class: "card" }, [
       sectionTitle("📅", "Heute geplant", null),
-      filtered(planned).length ? plannedList : h("div", { class: "small" }, ["Heute ist nichts weiter geplant."])
+      filtered(planned).length ? h("div", { class: "list" }, filtered(planned).map(listItemCard)) : h("div", { class: "small" }, ["Heute ist nichts weiter geplant."])
     ]),
     h("div", { class: "grid2" }, [
-      moduleTile("🎯", "Ziele", goalsSummaryText(), "Ziele öffnen", () => { location.hash = "#/goals"; }),
+      moduleTile("🎯", "Ziele",    goalsSummaryText(), "Ziele öffnen",    () => { location.hash = "#/goals"; }),
       moduleTile("🧩", "Aufgaben", tasksSummaryText(), "Aufgaben öffnen", () => { location.hash = "#/tasks"; }),
     ])
   ]);
 }
 
-/* ---------- Goals ---------- */
+// ── Goals ──────────────────────────────────────
 
 function renderGoals() {
   const goals = getGoalsNormalized();
-
   const cards = goals.map(g => {
     const { period, min, max, done } = computeGoalQuota(g);
-    const freq = period === "TAG"
-      ? `Heute: ${done} / ${min}–${max || min}`
-      : `Diese Woche: ${done} / ${min}–${max || min}`;
-    const mod = (g.modus === "ritualisiert")
-      ? `ritualisiert ${g.feste_zeit || "09:00"}`
-      : `flexibel ${g.zeit_von || "14:00"}–${g.zeit_bis || "20:00"}`;
-
+    const freq = period === "TAG" ? `Heute: ${done} / ${min}–${max || min}` : `Diese Woche: ${done} / ${min}–${max || min}`;
+    const mod  = g.modus === "ritualisiert" ? `ritualisiert ${g.feste_zeit || "09:00"}` : `flexibel ${g.zeit_von || "14:00"}–${g.zeit_bis || "20:00"}`;
     return h("div", { class: "item" }, [
       h("div", { class: "badge goal" }, ["🎯"]),
       h("div", { class: "item-main" }, [
         h("div", { class: "item-title" }, [g.ziel_name]),
-        h("div", { class: "item-sub" }, [`Stufe ${g.aktuelle_stufe} von ${g.max_stufe}\n${freq}\n${mod}`]),
+        h("div", { class: "item-sub" },   [`Stufe ${g.aktuelle_stufe} von ${g.max_stufe}\n${freq}\n${mod}`]),
         h("div", { class: "row", style: "margin-top:10px" }, [
-          h("button", {
-            class: "btn secondary",
-            type: "button",
-            onclick: () => toggleGoalActive(g.ziel_id)
-          }, [g.aktiv ? "Pausieren" : "Aktivieren"]),
+          h("button", { class: "btn secondary", type: "button", onclick: () => toggleGoalActive(g.ziel_id) }, [g.aktiv ? "Pausieren" : "Aktivieren"]),
         ])
       ])
     ]);
   });
-
   return h("div", { class: "card" }, [
     sectionTitle("🎯", "Ziele", null),
     cards.length ? h("div", { class: "list" }, cards) : h("div", { class: "small" }, ["Keine Ziele in goals.csv gefunden."])
@@ -1004,26 +844,18 @@ function renderGoals() {
 }
 
 function toggleGoalActive(goalId) {
-  const gid = normId(goalId);
+  const gid  = normId(goalId);
   const goal = getGoalsNormalized().find(g => normId(g.ziel_id) === gid);
-  const current = goal ? !!goal.aktiv : false;
-
-  setGoalOverride(gid, { aktiv: !current });
-
-  regenIfNeeded(true);
-  render();
+  setGoalOverride(gid, { aktiv: !(goal ? !!goal.aktiv : false) });
+  regenIfNeeded(true); render();
 }
 
-/* ---------- Tasks (inkl. Inbox von Anja) ---------- */
+// ── Tasks (Anja Inbox) ─────────────────────────
 
 function renderAnjaInbox() {
-  const tasks = getAnjaTasks();
-  const active = tasks.filter(t => t.status === "offen" || t.status === "angenommen");
+  const active = state.anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen");
 
-  function canExecute(t) {
-    if (!t.dueAt) return true;
-    return new Date(t.dueAt) <= new Date();
-  }
+  const canExecute = t => !t.dueAt || new Date(t.dueAt) <= new Date();
 
   const cards = active.map(t => {
     const locked = !canExecute(t);
@@ -1033,35 +865,26 @@ function renderAnjaInbox() {
       t.note ? `Bemerkung: ${t.note}` : ""
     ].filter(Boolean).join("\n");
 
-    const btnAccept = h("button", {
-      class: "btn secondary",
-      type: "button",
-      onclick: () => { setAnjaTaskStatus(t.id, "angenommen"); toast("Aufgabe angenommen."); render(); }
-    }, ["Annehmen"]);
+    const btnAccept = h("button", { class: "btn secondary", type: "button", onclick: async () => {
+      await setAnjaTaskStatus(t.id, "angenommen"); toast("Aufgabe angenommen."); render();
+    }}, ["Annehmen"]);
 
-    const btnDone = h("button", {
-      class: "btn secondary",
-      type: "button",
-      onclick: () => { setAnjaTaskStatus(t.id, "erledigt"); toast("Erledigt."); render(); },
-      ...(locked ? { disabled: "true" } : {})
-    }, ["Geschafft"]);
+    const btnDone = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), onclick: async () => {
+      await setAnjaTaskStatus(t.id, "erledigt"); toast("Erledigt."); render();
+    }}, ["Geschafft"]);
 
-    const btnAbort = h("button", {
-      class: "btn secondary",
-      type: "button",
-      onclick: () => { setAnjaTaskStatus(t.id, "abgebrochen"); toast("Abgebrochen."); render(); },
-      ...(locked ? { disabled: "true" } : {})
-    }, ["Abgebrochen"]);
+    const btnAbort = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), onclick: async () => {
+      await setAnjaTaskStatus(t.id, "abgebrochen"); toast("Abgebrochen."); render();
+    }}, ["Abgebrochen"]);
 
     return h("div", { class: "item" }, [
       h("div", { class: "badge task" }, ["👑"]),
       h("div", { class: "item-main" }, [
         h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
-        h("div", { class: "item-sub" }, [meta]),
+        h("div", { class: "item-sub" },   [meta]),
         h("div", { class: "row", style: "margin-top:10px; gap:10px" }, [
-          (t.status === "offen") ? btnAccept : null,
-          btnDone,
-          btnAbort,
+          t.status === "offen" ? btnAccept : null,
+          btnDone, btnAbort,
           locked ? h("div", { class: "small" }, ["(gesperrt bis Fälligkeit)"]) : null,
         ].filter(Boolean))
       ])
@@ -1069,99 +892,51 @@ function renderAnjaInbox() {
   });
 
   return h("div", { class: "card" }, [
-    sectionTitle("👑", "Inbox von Anja", h("button", {
-      class: "btn secondary",
-      type: "button",
-      onclick: () => { location.hash = "#/anja"; }
-    }, ["Zu Anja"])),
+    sectionTitle("👑", "Inbox von Anja", h("button", { class: "btn secondary", type: "button", onclick: async () => {
+      toast("Lade…"); await loadAnjaTasks(); render(); toast("Aktualisiert.");
+    }}, ["🔄"])),
     active.length ? h("div", { class: "list" }, cards) : h("div", { class: "small" }, ["Keine offenen Aufgaben von Anja."])
   ]);
 }
 
 function renderTasks() {
-  const rubriken = [...new Set((state.tasksData || []).map(r => (r.rubrik || "").trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "de"));
-
-  const rubSel = h("select", { class: "select", id: "rubSel" }, [
-    h("option", { value: "" }, ["Rubrik wählen"]),
-    ...rubriken.map(r => h("option", { value: r }, [r]))
-  ]);
-
-  const taskSel = h("select", { class: "select", id: "taskSel", disabled: "true" }, [
-    h("option", { value: "" }, ["Aufgabe wählen"])
-  ]);
-
-  const out = h("div", { id: "taskOut", style: "white-space:pre-line; font-weight:800; margin-top:10px" }, [""]);
-
+  const rubriken = [...new Set((state.tasksData || []).map(r => (r.rubrik || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"));
+  const rubSel  = h("select", { class: "select", id: "rubSel" },  [h("option", { value: "" }, ["Rubrik wählen"]), ...rubriken.map(r => h("option", { value: r }, [r]))]);
+  const taskSel = h("select", { class: "select", id: "taskSel", disabled: "true" }, [h("option", { value: "" }, ["Aufgabe wählen"])]);
+  const out     = h("div", { id: "taskOut", style: "white-space:pre-line; font-weight:800; margin-top:10px" }, [""]);
   const btnRandom = h("button", { class: "btn secondary", type: "button" }, ["Zufallsaufgabe"]);
-  const btnPush = h("button", { class: "btn secondary", type: "button" }, ["Push senden (Aufgabe)"]);
+  const btnPush   = h("button", { class: "btn secondary", type: "button" }, ["Push senden (Aufgabe)"]);
 
   function getItemsForRubrik(rub) {
-    return (state.tasksData || [])
-      .map(r => ({
-        rubrik: (r.rubrik || "").trim(),
-        titel: (r.titel || "").trim(),
-        klasse: (r.klasse || "").trim()
-      }))
-      .filter(x => x.rubrik === rub && x.titel);
+    return (state.tasksData || []).map(r => ({ rubrik: (r.rubrik||"").trim(), titel: (r.titel||"").trim(), klasse: (r.klasse||"").trim() })).filter(x => x.rubrik === rub && x.titel);
   }
-
   function setOutFromItem(it) {
     out.textContent = `🧩 Aufgabe\nRubrik: ${it.rubrik}\n\n${it.titel}${it.klasse ? "\n\nKlasse: " + it.klasse : ""}`;
     out.dataset.payload = JSON.stringify(it);
   }
-
   function rebuildTaskSelect() {
     const rub = rubSel.value;
     taskSel.innerHTML = "";
     taskSel.appendChild(h("option", { value: "" }, ["Aufgabe wählen"]));
-
-    if (!rub) {
-      taskSel.disabled = true;
-      return;
-    }
-
+    if (!rub) { taskSel.disabled = true; return; }
     const items = getItemsForRubrik(rub);
-    items.forEach((it, idx) => {
-      taskSel.appendChild(h("option", { value: String(idx) }, [`${it.titel}${it.klasse ? " [" + it.klasse + "]" : ""}`]));
-    });
-    taskSel.disabled = items.length ? false : true;
+    items.forEach((it, idx) => taskSel.appendChild(h("option", { value: String(idx) }, [`${it.titel}${it.klasse ? " [" + it.klasse + "]" : ""}`])));
+    taskSel.disabled = !items.length;
   }
-
-  rubSel.onchange = () => {
-    rebuildTaskSelect();
-    out.textContent = "";
-    delete out.dataset.payload;
-  };
-
-  taskSel.onchange = () => {
-    const rub = rubSel.value;
-    const items = getItemsForRubrik(rub);
-    const idx = parseInt(taskSel.value || "-1", 10);
-    if (idx >= 0 && items[idx]) setOutFromItem(items[idx]);
-  };
-
+  rubSel.onchange  = () => { rebuildTaskSelect(); out.textContent = ""; delete out.dataset.payload; };
+  taskSel.onchange = () => { const items = getItemsForRubrik(rubSel.value); const idx = parseInt(taskSel.value || "-1", 10); if (idx >= 0 && items[idx]) setOutFromItem(items[idx]); };
   btnRandom.onclick = () => {
-    const rub = rubSel.value;
-    if (!rub) { toast("Bitte Rubrik wählen."); return; }
-    const items = getItemsForRubrik(rub);
+    if (!rubSel.value) { toast("Bitte Rubrik wählen."); return; }
+    const items = getItemsForRubrik(rubSel.value);
     if (!items.length) { toast("Keine Aufgaben in dieser Rubrik."); return; }
-    const it = items[Math.floor(Math.random() * items.length)];
-    setOutFromItem(it);
+    setOutFromItem(items[Math.floor(Math.random() * items.length)]);
     toast("Zufallsaufgabe gewählt.");
   };
-
   btnPush.onclick = async () => {
     const payload = out.dataset.payload ? JSON.parse(out.dataset.payload) : null;
     if (!payload) { toast("Erst eine Aufgabe wählen."); return; }
-    const s = state.settings;
-    try {
-      await sendNtfy(s.ntfyTasksTopic, s.ntfyToken, `Aufgabe\nRubrik: ${payload.rubrik}\n\n${payload.titel}`, "Aufgabe");
-      toast("Push gesendet.");
-    } catch (e) {
-      console.warn(e);
-      toast("Push fehlgeschlagen.");
-    }
+    try { await sendNtfy(state.settings.ntfyTasksTopic, state.settings.ntfyToken, `Aufgabe\nRubrik: ${payload.rubrik}\n\n${payload.titel}`, "Aufgabe"); toast("Push gesendet."); }
+    catch (e) { console.warn(e); toast("Push fehlgeschlagen."); }
   };
 
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
@@ -1170,107 +945,79 @@ function renderTasks() {
       sectionTitle("🧩", "Aufgaben", null),
       h("div", { class: "small" }, ["Aufgaben sind optional (Lust / Anja). Keine Progression, keine Strafen."]),
       h("div", { class: "hr" }, []),
-      rubSel,
-      taskSel,
+      rubSel, taskSel,
       h("div", { class: "row" }, [btnRandom, btnPush]),
       out
     ])
   ]);
 }
 
-/* ---------- Log ---------- */
+// ── Log ────────────────────────────────────────
 
 function renderLog() {
   const log = getLog();
   const filterCh = h("div", { class: "chips" }, [
-    chip("Alle", state.filter === "all", () => { state.filter = "all"; render(); }),
-    chip("🎯 Ziele", state.filter === "goals", () => { state.filter = "goals"; render(); }),
-    chip("🧩 Aufgaben", state.filter === "tasks", () => { state.filter = "tasks"; render(); }),
+    chip("Alle",       state.filter === "all",   () => { state.filter = "all";   render(); }),
+    chip("🎯 Ziele",   state.filter === "goals", () => { state.filter = "goals"; render(); }),
+    chip("🧩 Aufgaben",state.filter === "tasks", () => { state.filter = "tasks"; render(); }),
   ]);
-
-  const filtered = log.filter(e => {
-    if (state.filter === "all") return true;
-    if (state.filter === "goals") return e.typ === "ziel";
-    if (state.filter === "tasks") return e.typ === "aufgabe";
-    return true;
-  });
-
+  const filtered = log.filter(e => state.filter === "all" || (state.filter === "goals" && e.typ === "ziel") || (state.filter === "tasks" && e.typ === "aufgabe"));
   const list = filtered.map(e => {
-    const badge = e.typ === "ziel" ? "🎯" : "🧩";
-    const title = e.typ === "ziel"
-      ? `${e.ziel_name} – Stufe ${e.stufe}`
-      : (e.title || "Aufgabe");
-
+    const isGoal = e.typ === "ziel";
     const subLines = [];
-    if (e.typ === "ziel") {
-      if (e.uebung) subLines.push(`Übung: ${e.uebung}`);
+    if (isGoal) {
+      if (e.uebung)       subLines.push(`Übung: ${e.uebung}`);
       if (e.rueckmeldung) subLines.push(`Rückmeldung: ${e.rueckmeldung}`);
-      if (e.gern) subLines.push(`Gern: ${e.gern}/5`);
+      if (e.gern)         subLines.push(`Gern: ${e.gern}/5`);
     }
     if (e.status) subLines.push(`Status: ${e.status}`);
-    if (e.notiz) subLines.push(`Notiz: ${e.notiz}`);
-
+    if (e.notiz)  subLines.push(`Notiz: ${e.notiz}`);
     return h("div", { class: "item" }, [
-      h("div", { class: "badge " + (e.typ === "ziel" ? "goal" : "task") }, [badge]),
+      h("div", { class: "badge " + (isGoal ? "goal" : "task") }, [isGoal ? "🎯" : "🧩"]),
       h("div", { class: "item-main" }, [
-        h("div", { class: "item-title" }, [title]),
-        h("div", { class: "item-sub" }, [`${new Date(e.createdAt).toLocaleString("de-DE")}\n${subLines.join("\n")}`])
+        h("div", { class: "item-title" }, [isGoal ? `${e.ziel_name} – Stufe ${e.stufe}` : (e.title || "Aufgabe")]),
+        h("div", { class: "item-sub" },   [`${new Date(e.createdAt).toLocaleString("de-DE")}\n${subLines.join("\n")}`])
       ])
     ]);
   });
-
   return h("div", { class: "card" }, [
     sectionTitle("📓", "Log", filterCh),
     filtered.length ? h("div", { class: "list" }, list) : h("div", { class: "small" }, ["Noch keine Einträge."])
   ]);
 }
 
-/* ---------- Settings ---------- */
+// ── Settings ───────────────────────────────────
 
 function renderSettings() {
   const s = state.settings;
-
   const topicGoals = h("input", { class: "input", type: "text", value: s.ntfyGoalsTopic, placeholder: "Topic Ziele (ntfy)" });
   const topicTasks = h("input", { class: "input", type: "text", value: s.ntfyTasksTopic, placeholder: "Topic Aufgaben (ntfy)" });
-  const token = h("input", { class: "input", type: "text", value: s.ntfyToken, placeholder: "ntfy Token (optional)" });
+  const token      = h("input", { class: "input", type: "text", value: s.ntfyToken,      placeholder: "ntfy Token (optional)" });
+  const gapGoals   = h("input", { class: "input", type: "number", min: "0", step: "1", value: String(s.minGapGoalsMin) });
+  const maxBundle  = h("input", { class: "input", type: "number", min: "1", step: "1", value: String(s.maxUnitsPerBundle) });
 
-  const gapGoals = h("input", { class: "input", type: "number", min: "0", step: "1", value: String(s.minGapGoalsMin) });
-  const maxBundle = h("input", { class: "input", type: "number", min: "1", step: "1", value: String(s.maxUnitsPerBundle) });
-
-  const btnSave = h("button", { class: "btn", type: "button" }, ["Speichern"]);
+  const btnSave      = h("button", { class: "btn", type: "button" }, ["Speichern"]);
   const btnTestGoals = h("button", { class: "btn secondary", type: "button" }, ["Push testen (Ziele)"]);
-  const btnReload = h("button", { class: "btn secondary", type: "button" }, ["CSV neu laden"]);
+  const btnReload    = h("button", { class: "btn secondary", type: "button" }, ["CSV neu laden"]);
 
   btnSave.onclick = () => {
-    s.ntfyGoalsTopic = topicGoals.value.trim();
-    s.ntfyTasksTopic = topicTasks.value.trim();
-    s.ntfyToken = token.value.trim();
-    s.minGapGoalsMin = parseInt(gapGoals.value || "0", 10) || 0;
+    s.ntfyGoalsTopic = topicGoals.value.trim(); s.ntfyTasksTopic = topicTasks.value.trim();
+    s.ntfyToken = token.value.trim(); s.minGapGoalsMin = parseInt(gapGoals.value || "0", 10) || 0;
     s.maxUnitsPerBundle = parseInt(maxBundle.value || "5", 10) || 5;
-    persistSettings();
-    toast("Gespeichert.");
+    persistSettings(); toast("Gespeichert.");
   };
-
   btnTestGoals.onclick = async () => {
     try { await sendNtfy(s.ntfyGoalsTopic, s.ntfyToken, "Test vom Glam Trainer (Ziele)", "Push-Test"); toast("Gesendet."); }
     catch (e) { console.warn(e); toast("Fehler."); }
   };
-
   btnReload.onclick = async () => {
-    try {
-      await loadAllCSV();
-      toast("CSV geladen.");
-      regenIfNeeded(true);
-      render();
-    } catch (e) {
-      console.warn(e);
-      toast("CSV Fehler.");
-    }
+    try { await loadAllCSV(); toast("CSV geladen."); regenIfNeeded(true); render(); }
+    catch (e) { console.warn(e); toast("CSV Fehler."); }
   };
 
   return h("div", { class: "card" }, [
     sectionTitle("⚙️", "Einstellungen", null),
-    h("div", { class: "small" }, ["Hinweis: Push/Erinnerungen funktionieren zuverlässig, solange die App gelegentlich geöffnet ist."]),
+    h("div", { class: "small" }, ["Push/Erinnerungen funktionieren zuverlässig, solange die App gelegentlich geöffnet ist."]),
     h("div", { class: "hr" }, []),
     h("div", { class: "small" }, ["ntfy Topics"]),
     topicGoals, topicTasks, token,
@@ -1281,29 +1028,26 @@ function renderSettings() {
   ]);
 }
 
-/* ---------- Render ---------- */
+// ── Render ─────────────────────────────────────
 
 function render() {
   const dm = $("dayMode");
   if (dm) dm.value = state.settings.dayMode;
-
   setActiveNav(state.route);
-
   const view = $("view");
   if (!view) return;
   view.innerHTML = "";
-
-  if (state.route.startsWith("#/nav")) view.appendChild(renderNav());
-  else if (state.route.startsWith("#/anja")) view.appendChild(renderAnja());
-  else if (state.route.startsWith("#/home")) view.appendChild(renderHome());
-  else if (state.route.startsWith("#/goals")) view.appendChild(renderGoals());
-  else if (state.route.startsWith("#/tasks")) view.appendChild(renderTasks());
-  else if (state.route.startsWith("#/log")) view.appendChild(renderLog());
+  if      (state.route.startsWith("#/nav"))      view.appendChild(renderNav());
+  else if (state.route.startsWith("#/anja"))     view.appendChild(renderAnja());
+  else if (state.route.startsWith("#/home"))     view.appendChild(renderHome());
+  else if (state.route.startsWith("#/goals"))    view.appendChild(renderGoals());
+  else if (state.route.startsWith("#/tasks"))    view.appendChild(renderTasks());
+  else if (state.route.startsWith("#/log"))      view.appendChild(renderLog());
   else if (state.route.startsWith("#/settings")) view.appendChild(renderSettings());
   else view.appendChild(renderNav());
 }
 
-/* ---------- Routing + init ---------- */
+// ── Routing + Init ─────────────────────────────
 
 function onRoute() {
   state.route = location.hash || "#/nav";
@@ -1313,85 +1057,67 @@ function onRoute() {
 
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
-  const candidates = ["./sw.js", "./service-worker.js"];
-  for (const url of candidates) {
-    try {
-      await navigator.serviceWorker.register(url, { scope: "./" });
-      return;
-    } catch {
-      // try next
-    }
+  for (const url of ["./sw.js", "./service-worker.js"]) {
+    try { await navigator.serviceWorker.register(url, { scope: "./" }); return; } catch {}
   }
 }
 
-/* ---------- Receive messages from control_panel (iframe) ---------- */
+// Nachrichten vom control_panel iframe empfangen
 function setupControlPanelBridge() {
-  window.addEventListener("message", (ev) => {
+  window.addEventListener("message", async (ev) => {
     const msg = ev?.data;
     if (!msg || typeof msg !== "object") return;
-
     if (msg.type === "GT_NEW_TASK" && msg.payload) {
       const p = msg.payload;
-
       const task = {
-        id: p.id || (`anja-${Date.now()}-${Math.floor(Math.random() * 10000)}`),
-        title: p.title || p.titel || "Aufgabe",
-        note: p.note || "",
-        dueAt: p.dueAt || "",
-        status: "offen",
+        id:        p.id || `anja-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        title:     p.title || p.titel || "Aufgabe",
+        note:      p.note || "",
+        dueAt:     p.dueAt || "",
+        status:    "offen",
         createdAt: p.createdAt || nowISO(),
       };
-
-      upsertAnjaTask(task);
+      await upsertAnjaTask(task);
       toast("Neue Aufgabe von Anja gespeichert.");
       render();
-      return;
     }
-
     if (msg.type === "GT_REFRESH") {
+      await loadAnjaTasks();
       render();
-      return;
     }
   });
 }
 
 async function init() {
   const label = $("todayLabel");
-  if (label) {
-    const d = new Date();
-    label.textContent = d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
-  }
+  if (label) label.textContent = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
 
   const dm = $("dayMode");
   if (dm) dm.addEventListener("change", (e) => setDayMode(e.target.value));
 
   const btnSync = $("btnSync");
   if (btnSync) btnSync.addEventListener("click", async () => {
-    try {
-      await loadAllCSV();
-      toast("CSV geladen.");
-      regenIfNeeded(true);
-      render();
-    } catch (e) {
-      console.warn(e);
-      toast("CSV Fehler.");
-    }
+    try { await loadAllCSV(); toast("CSV geladen."); regenIfNeeded(true); render(); }
+    catch (e) { console.warn(e); toast("CSV Fehler."); }
   });
 
-  document.querySelectorAll(".navbtn").forEach(b => {
-    b.addEventListener("click", () => { location.hash = b.getAttribute("data-route"); });
-  });
-
+  document.querySelectorAll(".navbtn").forEach(b => b.addEventListener("click", () => { location.hash = b.getAttribute("data-route"); }));
   window.addEventListener("hashchange", onRoute);
 
   setupControlPanelBridge();
   await registerServiceWorker();
 
-  try { await loadAllCSV(); } catch (e) { console.warn(e); }
+  // Firebase + CSV parallel laden
+  await Promise.all([loadAllCSV().catch(console.warn), loadAnjaTasks()]);
 
   regenIfNeeded(true);
+  setInterval(() => maybeDispatchPushes(), state.settings.tickSeconds * 1000);
 
-  setInterval(() => { maybeDispatchPushes(); }, state.settings.tickSeconds * 1000);
+  // Anja-Tasks alle 30 Sekunden automatisch aktualisieren
+  setInterval(async () => {
+    await loadAnjaTasks();
+    if (state.route.startsWith("#/tasks") || state.route.startsWith("#/anja")) render();
+  }, 30000);
 
   if (!location.hash) location.hash = "#/nav";
   onRoute();
