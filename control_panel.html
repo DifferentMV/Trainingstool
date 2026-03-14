@@ -70,7 +70,7 @@
 
       <!-- STATUS -->
       <div class="stack">
-        <div class="title">Offene / laufende Aufgaben <span class="syncbadge" id="syncBadge"></span></div>
+        <div class="title">Rückmeldungen <span class="syncbadge" id="syncBadge"></span></div>
         <div id="taskStatus" class="stack" style="max-height:340px;overflow-y:auto;padding-right:4px;"></div>
         <div class="sep"></div>
       </div>
@@ -345,19 +345,20 @@ function renderTaskStatus() {
   if (!box) return;
   box.innerHTML = "";
 
-  const open = anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen").slice(0, 6);
-  const done = anjaTasks.filter(t => t.status === "erledigt" || t.status === "abgebrochen").slice(0, 5);
+  const done = anjaTasks
+    .filter(t => t.status === "erledigt" || t.status === "abgebrochen")
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
+    .slice(0, 10);
 
-  if (!open.length && !done.length) {
+  if (!done.length) {
     const d = document.createElement("div");
     d.className = "small";
-    d.textContent = "Noch keine Aufgaben.";
+    d.textContent = "Noch keine Rückmeldungen.";
     box.appendChild(d);
     return;
   }
 
-  // Offene / laufende
-  open.forEach(t => {
+  done.forEach(t => {
     const div = document.createElement("div");
     div.className = "taskline";
     div.style.flexDirection = "column";
@@ -367,7 +368,6 @@ function renderTaskStatus() {
     top.style.display = "flex";
     top.style.justifyContent = "space-between";
     top.style.gap = "10px";
-    top.style.alignItems = "flex-start";
 
     const left = document.createElement("div");
     left.style.flex = "1";
@@ -379,112 +379,28 @@ function renderTaskStatus() {
     const meta = document.createElement("div");
     meta.className = "small";
     meta.textContent = [
-      `Status: ${t.status}`,
-      t.dueAt ? `Fällig am: ${fmtDateTime(t.dueAt)}` : "Fällig: sofort",
-      t.note ? `Bemerkung: ${t.note}` : "",
-      t.acceptedAt ? `Angenommen: ${fmtDateTime(t.acceptedAt)}` : ""
+      t.doneAt ? `Erledigt: ${fmtDateTime(t.doneAt)}` : "",
+      t.schwierigkeit ? `Schwierigkeit: ${t.schwierigkeit}/5` : "",
+      t.gerne         ? `Gerne: ${t.gerne}/5` : "",
+      t.rueckmeldung  ? `Notiz: ${t.rueckmeldung}` : "",
+      t.belegWA       ? "📱 Beleg per WhatsApp" : "",
     ].filter(Boolean).join(" · ");
 
     left.appendChild(title);
     left.appendChild(meta);
 
-    const right = document.createElement("div");
-    right.style.display = "flex";
-    right.style.flexDirection = "column";
-    right.style.alignItems = "flex-end";
-    right.style.gap = "6px";
+    const badge = document.createElement("div");
+    badge.className = "small";
+    badge.style.whiteSpace = "nowrap";
+    badge.style.fontWeight = "800";
+    badge.textContent = t.status === "erledigt" ? "✓ Erledigt" : "✗ Abgebrochen";
+    badge.style.color = t.status === "erledigt" ? "#7ecfa0" : "#c25d6a";
 
-    const statusBadge = document.createElement("div");
-    statusBadge.className = "small";
-    statusBadge.style.whiteSpace = "nowrap";
-    statusBadge.textContent = t.status === "offen" ? "Offen" : "Angenommen";
-
-    const btnDel = document.createElement("button");
-    btnDel.className = "btn secondary";
-    btnDel.textContent = "🗑 Löschen";
-    btnDel.style.cssText = "font-size:12px;padding:6px 10px;border-radius:10px;color:#c25d6a;border-color:rgba(194,93,106,.4);";
-    btnDel.onclick = async () => {
-      if (!t._fbKey) { showToast("Kein Firebase-Key – kann nicht löschen."); return; }
-      btnDel.disabled = true;
-      btnDel.textContent = "…";
-      try {
-        await fbDeleteAnjaTask(t._fbKey);
-        anjaTasks = anjaTasks.filter(x => x._fbKey !== t._fbKey);
-        renderTaskStatus();
-        showToast("Aufgabe gelöscht.");
-        try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "GT_REFRESH" }, "*"); } catch {}
-      } catch (e) {
-        btnDel.disabled = false;
-        btnDel.textContent = "🗑 Löschen";
-        showToast("Fehler beim Löschen.");
-      }
-    };
-
-    right.appendChild(statusBadge);
-    right.appendChild(btnDel);
     top.appendChild(left);
-    top.appendChild(right);
+    top.appendChild(badge);
     div.appendChild(top);
     box.appendChild(div);
   });
-
-  // Erledigte mit Rückmeldung + Foto
-  if (done.length) {
-    const sep = document.createElement("div");
-    sep.className = "sep";
-    box.appendChild(sep);
-
-    const label = document.createElement("div");
-    label.className = "title";
-    label.style.marginTop = "4px";
-    label.textContent = "Rückmeldungen";
-    box.appendChild(label);
-
-    done.forEach(t => {
-      const div = document.createElement("div");
-      div.className = "taskline";
-      div.style.flexDirection = "column";
-      div.style.gap = "8px";
-
-      const top = document.createElement("div");
-      top.style.display = "flex";
-      top.style.justifyContent = "space-between";
-      top.style.gap = "10px";
-
-      const left = document.createElement("div");
-      left.style.flex = "1";
-
-      const title = document.createElement("div");
-      title.style.fontWeight = "800";
-      title.textContent = t.title || "Aufgabe";
-
-      const meta = document.createElement("div");
-      meta.className = "small";
-      meta.textContent = [
-        t.doneAt ? `Erledigt: ${fmtDateTime(t.doneAt)}` : "",
-        t.schwierigkeit ? `Schwierigkeit: ${t.schwierigkeit}/5` : "",
-        t.gerne         ? `Gerne: ${t.gerne}/5` : "",
-        t.rueckmeldung  ? `Notiz: ${t.rueckmeldung}` : "",
-        t.belegWA       ? "📱 Beleg per WhatsApp" : "",
-      ].filter(Boolean).join(" · ");
-
-      left.appendChild(title);
-      left.appendChild(meta);
-
-      const badge = document.createElement("div");
-      badge.className = "small";
-      badge.style.whiteSpace = "nowrap";
-      badge.style.fontWeight = "800";
-      badge.textContent = t.status === "erledigt" ? "✓ Erledigt" : "✗ Abgebrochen";
-      badge.style.color = t.status === "erledigt" ? "#7ecfa0" : "#c25d6a";
-
-      top.appendChild(left);
-      top.appendChild(badge);
-      div.appendChild(top);
-
-      box.appendChild(div);
-    });
-  }
 }
 
 // ── CSV ──
