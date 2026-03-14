@@ -217,6 +217,11 @@ async function fbSaveAnjaTask(task) {
   return fbKey;
 }
 
+async function fbDeleteAnjaTask(fbKey) {
+  const res = await fetch(`${FIREBASE_URL}/anja_tasks/${fbKey}.json`, { method: "DELETE" });
+  return res.ok;
+}
+
 // ═══════════════════════════════════════
 // APP STATE
 // ═══════════════════════════════════════
@@ -355,6 +360,15 @@ function renderTaskStatus() {
   open.forEach(t => {
     const div = document.createElement("div");
     div.className = "taskline";
+    div.style.flexDirection = "column";
+    div.style.gap = "8px";
+
+    const top = document.createElement("div");
+    top.style.display = "flex";
+    top.style.justifyContent = "space-between";
+    top.style.gap = "10px";
+    top.style.alignItems = "flex-start";
+
     const left = document.createElement("div");
     left.style.flex = "1";
 
@@ -375,12 +389,42 @@ function renderTaskStatus() {
     left.appendChild(meta);
 
     const right = document.createElement("div");
-    right.className = "small";
-    right.style.whiteSpace = "nowrap";
-    right.textContent = t.status === "offen" ? "Offen" : "Angenommen";
+    right.style.display = "flex";
+    right.style.flexDirection = "column";
+    right.style.alignItems = "flex-end";
+    right.style.gap = "6px";
 
-    div.appendChild(left);
-    div.appendChild(right);
+    const statusBadge = document.createElement("div");
+    statusBadge.className = "small";
+    statusBadge.style.whiteSpace = "nowrap";
+    statusBadge.textContent = t.status === "offen" ? "Offen" : "Angenommen";
+
+    const btnDel = document.createElement("button");
+    btnDel.className = "btn secondary";
+    btnDel.textContent = "🗑 Löschen";
+    btnDel.style.cssText = "font-size:12px;padding:6px 10px;border-radius:10px;color:#c25d6a;border-color:rgba(194,93,106,.4);";
+    btnDel.onclick = async () => {
+      if (!t._fbKey) { showToast("Kein Firebase-Key – kann nicht löschen."); return; }
+      btnDel.disabled = true;
+      btnDel.textContent = "…";
+      try {
+        await fbDeleteAnjaTask(t._fbKey);
+        anjaTasks = anjaTasks.filter(x => x._fbKey !== t._fbKey);
+        renderTaskStatus();
+        showToast("Aufgabe gelöscht.");
+        try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "GT_REFRESH" }, "*"); } catch {}
+      } catch (e) {
+        btnDel.disabled = false;
+        btnDel.textContent = "🗑 Löschen";
+        showToast("Fehler beim Löschen.");
+      }
+    };
+
+    right.appendChild(statusBadge);
+    right.appendChild(btnDel);
+    top.appendChild(left);
+    top.appendChild(right);
+    div.appendChild(top);
     box.appendChild(div);
   });
 
