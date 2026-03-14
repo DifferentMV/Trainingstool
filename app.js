@@ -742,59 +742,47 @@ function renderNav() {
 
 function renderAnja() {
   const btnBack = h("button", { class: "btn secondary", type: "button", onclick: () => { location.hash = "#/nav"; } }, ["Zur Startauswahl"]);
-  const tasks  = state.anjaTasks;
-  const open   = tasks.filter(t => t.status === "offen").length;
-  const accepted = tasks.filter(t => t.status === "angenommen").length;
-
-  const sample = tasks
-    .filter(t => t.status === "offen" || t.status === "angenommen")
-    .slice(0, 3)
-    .map(t => h("div", { class: "item" }, [
-      h("div", { class: "badge task" }, ["🧾"]),
-      h("div", { class: "item-main" }, [
-        h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
-        h("div", { class: "item-sub" }, [[`Status: ${t.status}`, t.dueAt ? `Fällig am: ${fmtDateTimeLocal(t.dueAt)}` : ""].filter(Boolean).join("\n")]),
-      ])
-    ]));
-
-  const statusCard = h("div", { class: "card" }, [
-    sectionTitle("📌", "Status", null),
-    h("div", { class: "small" }, [`Offen: ${open} · Angenommen: ${accepted}`]),
-    h("div", { class: "hr" }, []),
-    sample.length ? h("div", { class: "list" }, sample) : h("div", { class: "small" }, ["Noch keine Aufgaben."])
-  ]);
-
-  // Sync-Button
-  const btnSync = h("button", { class: "btn secondary", type: "button", onclick: async () => {
-    toast("Lade…");
-    await loadAnjaTasks();
-    render();
-    toast("Aktualisiert.");
-  }}, ["🔄 Aktualisieren"]);
 
   const iframe = h("iframe", {
     src: "control_panel.html",
-    style: "width:100%;height:70vh;border:0;border-radius:16px;background:transparent;",
+    style: "width:100%;height:85vh;border:0;border-radius:16px;background:transparent;",
     loading: "lazy",
   });
+
+  const activeGoals = getGoalsNormalized().filter(g => g.aktiv);
+  const goalItems = activeGoals.map(g => {
+    const { period, done, min, max } = computeGoalQuota(g);
+    const freq = period === "TAG" ? `Heute: ${done}/${max||min}` : `Woche: ${done}/${max||min}`;
+    const ex = pickExerciseForGoal(g.ziel_id, g.aktuelle_stufe);
+    return h("div", { class: "item" }, [
+      h("div", { class: "badge goal" }, ["🎯"]),
+      h("div", { class: "item-main" }, [
+        h("div", { class: "item-title" }, [g.ziel_name]),
+        h("div", { class: "item-sub" }, [`Stufe ${g.aktuelle_stufe}/${g.max_stufe} · ${freq}${ex ? "\nAktuell: " + ex.titel : ""}`]),
+      ])
+    ]);
+  });
+
+  const zieleCard = h("div", { class: "card" }, [
+    sectionTitle("🎯", "Aktive Ziele", null),
+    activeGoals.length
+      ? h("div", { class: "list" }, goalItems)
+      : h("div", { class: "small" }, ["Keine aktiven Ziele."]),
+  ]);
 
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
       sectionTitle("👑", "Dom", btnBack),
-      h("div", { class: "small" }, ["Aufgaben werden in der Cloud gespeichert – beide Geräte sehen dieselben Daten."]),
-      btnSync,
+      h("div", { class: "small" }, ["Ziele & Aufgaben – geräteübergreifend via Firebase."]),
     ]),
-    statusCard,
+    zieleCard,
     h("div", { class: "card" }, [
-      h("div", { style: "font-weight:900; font-size:16px; margin-bottom:8px" }, ["Control Panel"]),
+      h("div", { style: "font-weight:900;font-size:16px;margin-bottom:8px" }, ["Aufgaben erstellen"]),
       h("div", { class: "hr" }, []),
       iframe,
     ]),
   ]);
 }
-
-// ── Home ───────────────────────────────────────
-
 function renderHome() {
   regenIfNeeded(false);
   const schedule = getSchedule();
@@ -865,22 +853,27 @@ function toggleGoalActive(goalId) {
 
 // ── Tasks (Anja Inbox) ─────────────────────────
 
-function ratingRow(label, id) {
-  const btns = [1,2,3,4,5].map(n => {
-    const b = h("button", { class: "btn secondary", type: "button", style: "min-width:44px;min-height:44px;font-size:16px;" }, [String(n)]);
-    b.dataset.val = String(n);
-    b.onclick = () => {
-      btns.forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
-      row.dataset.selected = String(n);
-    };
+function ratingRow(label) {
+  const btnEls = [1,2,3,4,5].map(n => {
+    const b = document.createElement("button");
+    b.className = "btn secondary";
+    b.type = "button";
+    b.textContent = String(n);
+    b.style.cssText = "min-width:48px;min-height:48px;font-size:18px;font-weight:700;";
     return b;
   });
   const row = h("div", { style: "display:flex;flex-direction:column;gap:6px;margin-top:8px;" }, [
     h("div", { class: "small" }, [label]),
-    h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;" }, btns)
+    h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;" }, btnEls)
   ]);
   row.dataset.selected = "";
+  btnEls.forEach((b, i) => {
+    b.addEventListener("click", () => {
+      btnEls.forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      row.dataset.selected = String(i + 1);
+    });
+  });
   return row;
 }
 
@@ -1171,18 +1164,10 @@ function setupControlPanelBridge() {
   window.addEventListener("message", async (ev) => {
     const msg = ev?.data;
     if (!msg || typeof msg !== "object") return;
-    if (msg.type === "GT_NEW_TASK" && msg.payload) {
-      const p = msg.payload;
-      const task = {
-        id:        p.id || `anja-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-        title:     p.title || p.titel || "Aufgabe",
-        note:      p.note || "",
-        dueAt:     p.dueAt || "",
-        status:    "offen",
-        createdAt: p.createdAt || nowISO(),
-      };
-      await upsertAnjaTask(task);
-      toast("Neue Aufgabe von Anja gespeichert.");
+    // control_panel speichert bereits direkt in Firebase – hier nur UI aktualisieren
+    if (msg.type === "GT_NEW_TASK") {
+      await loadAnjaTasks();
+      toast("Neue Aufgabe von Anja.");
       render();
     }
     if (msg.type === "GT_REFRESH") {
