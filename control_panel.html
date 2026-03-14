@@ -68,14 +68,7 @@
 
     <div class="card stack">
 
-      <!-- STATUS -->
-      <div class="stack">
-        <div class="title">Rückmeldungen <span class="syncbadge" id="syncBadge"></span></div>
-        <div id="taskStatus" class="stack" style="max-height:340px;overflow-y:auto;padding-right:4px;"></div>
-        <div class="sep"></div>
-      </div>
-
-      <!-- MODE -->
+      <!-- MODE (Aufgabe erstellen – jetzt oben) -->
       <div class="stack" id="stepMode">
         <div class="title">Was möchtest du festlegen?</div>
         <div class="pillgrid" id="modeGrid"></div>
@@ -168,6 +161,14 @@
       </div>
 
       <div id="errBox" class="error"></div>
+
+      <!-- RÜCKMELDUNGEN (jetzt unten) -->
+      <div class="sep"></div>
+      <div class="stack">
+        <div class="title">Rückmeldungen <span class="syncbadge" id="syncBadge"></span></div>
+        <div id="taskStatus" class="stack" style="max-height:340px;overflow-y:auto;padding-right:4px;"></div>
+      </div>
+
     </div>
   </div>
 
