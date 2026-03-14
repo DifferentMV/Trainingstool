@@ -71,7 +71,7 @@
       <!-- STATUS -->
       <div class="stack">
         <div class="title">Offene / laufende Aufgaben <span class="syncbadge" id="syncBadge"></span></div>
-        <div id="taskStatus" class="stack"></div>
+        <div id="taskStatus" class="stack" style="max-height:340px;overflow-y:auto;padding-right:4px;"></div>
         <div class="sep"></div>
       </div>
 
@@ -258,7 +258,7 @@ function savePushSettings() {
 }
 function restorePushSettings() {
   const s = getPushSettings();
-  if (s.topic) $("pushTopic").value = s.topic;
+  $("pushTopic").value = s.topic || "my-secret-task-topic-4711";
   if (s.token) $("pushToken").value = s.token;
   $("pushOnBuild").checked = !!s.auto;
 }
