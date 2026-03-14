@@ -279,13 +279,19 @@ async function setAnjaTaskStatus(taskId, status, feedback = {}) {
   if (!task) return;
   task.status = status;
   task.updatedAt = nowISO();
-  if (feedback.rueckmeldung !== undefined) task.rueckmeldung = feedback.rueckmeldung;
-  if (status === "erledigt") task.doneAt = nowISO();
+  if (feedback.rueckmeldung  !== undefined) task.rueckmeldung  = feedback.rueckmeldung;
+  if (feedback.schwierigkeit !== undefined) task.schwierigkeit = feedback.schwierigkeit;
+  if (feedback.gerne         !== undefined) task.gerne         = feedback.gerne;
+  if (feedback.belegWA       !== undefined) task.belegWA       = feedback.belegWA;
+  if (status === "erledigt")   task.doneAt     = nowISO();
   if (status === "angenommen") task.acceptedAt = nowISO();
   try {
     const patch = { status, updatedAt: task.updatedAt };
-    if (feedback.rueckmeldung !== undefined) patch.rueckmeldung = feedback.rueckmeldung;
-    if (task.doneAt) patch.doneAt = task.doneAt;
+    if (feedback.rueckmeldung  !== undefined) patch.rueckmeldung  = feedback.rueckmeldung;
+    if (feedback.schwierigkeit !== undefined) patch.schwierigkeit = feedback.schwierigkeit;
+    if (feedback.gerne         !== undefined) patch.gerne         = feedback.gerne;
+    if (feedback.belegWA       !== undefined) patch.belegWA       = feedback.belegWA;
+    if (task.doneAt)     patch.doneAt     = task.doneAt;
     if (task.acceptedAt) patch.acceptedAt = task.acceptedAt;
     await fbPatch(`anja_tasks/${task._fbKey}`, patch);
   } catch (e) {
@@ -725,8 +731,8 @@ function renderNav() {
       h("div", { class: "small" }, ["Wähle, welchen Bereich du öffnen willst."]),
       h("div", { class: "hr" }, []),
       h("div", { class: "grid2" }, [
-        moduleTile("🜂", "Trainer",              "Ziele, Trainings, Log & Settings.", "Öffnen", () => { location.hash = "#/home"; }),
-        moduleTile("👑", "Anja — Control Panel", "Anjas Aufgaben/Kleidung/Kombination.", "Öffnen", () => { location.hash = "#/anja"; }),
+        moduleTile("🜂", "Sub",  "Ziele, Trainings, Log & Settings.", "Öffnen", () => { location.hash = "#/home"; }),
+        moduleTile("👑", "Dom", "Anjas Aufgaben/Kleidung/Kombination.", "Öffnen", () => { location.hash = "#/anja"; }),
       ]),
     ]),
   ]);
@@ -774,7 +780,7 @@ function renderAnja() {
 
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
-      sectionTitle("👑", "Anja — Control Panel", btnBack),
+      sectionTitle("👑", "Dom", btnBack),
       h("div", { class: "small" }, ["Aufgaben werden in der Cloud gespeichert – beide Geräte sehen dieselben Daten."]),
       btnSync,
     ]),
@@ -859,11 +865,31 @@ function toggleGoalActive(goalId) {
 
 // ── Tasks (Anja Inbox) ─────────────────────────
 
+function ratingRow(label, id) {
+  const btns = [1,2,3,4,5].map(n => {
+    const b = h("button", { class: "btn secondary", type: "button", style: "min-width:44px;min-height:44px;font-size:16px;" }, [String(n)]);
+    b.dataset.val = String(n);
+    b.onclick = () => {
+      btns.forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      row.dataset.selected = String(n);
+    };
+    return b;
+  });
+  const row = h("div", { style: "display:flex;flex-direction:column;gap:6px;margin-top:8px;" }, [
+    h("div", { class: "small" }, [label]),
+    h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;" }, btns)
+  ]);
+  row.dataset.selected = "";
+  return row;
+}
+
 function renderAnjaInbox() {
-  const active = state.anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen");
+  const active  = state.anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen");
+  const done    = state.anjaTasks.filter(t => t.status === "erledigt" || t.status === "abgebrochen");
   const canExecute = t => !t.dueAt || new Date(t.dueAt) <= new Date();
 
-  const cards = active.map(t => {
+  function buildActiveCard(t) {
     const locked = !canExecute(t);
     const meta = [
       `Status: ${t.status}`,
@@ -875,61 +901,106 @@ function renderAnjaInbox() {
       await setAnjaTaskStatus(t.id, "angenommen"); toast("Aufgabe angenommen."); render();
     }}, ["Annehmen"]);
 
-    const btnAbort = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), onclick: async () => {
-      await setAnjaTaskStatus(t.id, "abgebrochen"); toast("Abgebrochen."); render();
-    }}, ["Abgebrochen"]);
+    // ── Erledigt-Formular ──
+    const schwRow  = ratingRow("Schwierigkeit (1=leicht, 5=schwer)", "schw");
+    const gerneRow = ratingRow("Wie gerne? (1=widerwillig, 5=sehr gerne)", "gerne");
+    const txtNote  = h("textarea", { class: "textarea", placeholder: "Anmerkung (optional)…", style: "min-height:56px;font-size:14px;" }, []);
+    const cbWA     = h("input", { type: "checkbox", id: `wa_${t.id}`, style: "width:22px;height:22px;" });
+    const waLabel  = h("label", { style: "display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)" }, [cbWA, "Beleg kommt per WhatsApp"]);
 
-    // Erledigt-Button öffnet Inline-Formular
-    const feedbackForm = h("div", {
-      class: "feedback-form",
-      style: "display:none; margin-top:10px; display:none; flex-direction:column; gap:8px;"
-    }, []);
+    const doneForm = h("div", { style: "display:none;flex-direction:column;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line, #242838);" }, [
+      schwRow, gerneRow, txtNote, waLabel,
+      h("div", { class: "row" }, [
+        h("button", { class: "btn", type: "button", style: "flex:1;min-height:48px;", onclick: async () => {
+          await setAnjaTaskStatus(t.id, "erledigt", {
+            schwierigkeit: schwRow.dataset.selected ? parseInt(schwRow.dataset.selected) : null,
+            gerne: gerneRow.dataset.selected ? parseInt(gerneRow.dataset.selected) : null,
+            rueckmeldung: txtNote.value.trim(),
+            belegWA: cbWA.checked,
+          });
+          toast("✓ Gespeichert."); render();
+        }}, ["✓ Abschicken"]),
+        h("button", { class: "btn secondary", type: "button", style: "min-height:48px;", onclick: () => {
+          doneForm.style.display = "none";
+        }}, ["Abbrechen"]),
+      ])
+    ]);
 
-    const txtFeedback = h("textarea", {
-      class: "textarea",
-      placeholder: "Rückmeldung (optional) …",
-      style: "min-height:60px; font-size:14px;"
-    }, []);
+    // ── Abgebrochen-Formular ──
+    const txtAbort = h("textarea", { class: "textarea", placeholder: "Grund (Pflicht)…", style: "min-height:56px;font-size:14px;" }, []);
+    const abortForm = h("div", { style: "display:none;flex-direction:column;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line, #242838);" }, [
+      h("div", { class: "small" }, ["Warum abgebrochen?"]),
+      txtAbort,
+      h("div", { class: "row" }, [
+        h("button", { class: "btn danger", type: "button", style: "flex:1;min-height:48px;", onclick: async () => {
+          if (!txtAbort.value.trim()) { toast("Bitte Grund angeben."); return; }
+          await setAnjaTaskStatus(t.id, "abgebrochen", { rueckmeldung: txtAbort.value.trim() });
+          toast("Abgebrochen gespeichert."); render();
+        }}, ["Bestätigen"]),
+        h("button", { class: "btn secondary", type: "button", style: "min-height:48px;", onclick: () => {
+          abortForm.style.display = "none";
+        }}, ["Abbrechen"]),
+      ])
+    ]);
 
-    const btnSendDone = h("button", { class: "btn", type: "button", onclick: async () => {
-      await setAnjaTaskStatus(t.id, "erledigt", {
-        rueckmeldung: txtFeedback.value.trim(),
-      });
-      toast("Erledigt & Rückmeldung gespeichert.");
-      render();
-    }}, ["✓ Abschicken"]);
-    const btnCancelFeedback = h("button", { class: "btn secondary", type: "button", onclick: () => {
-      feedbackForm.style.display = "none";
-    }}, ["Abbrechen"]);
-
-    feedbackForm.appendChild(txtFeedback);
-    feedbackForm.appendChild(h("div", { class: "row" }, [btnSendDone, btnCancelFeedback]));
-
-    const btnDone = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), onclick: () => {
-      feedbackForm.style.display = feedbackForm.style.display === "none" ? "flex" : "none";
+    const btnDone = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), style: "flex:1;min-height:48px;", onclick: () => {
+      doneForm.style.display  = doneForm.style.display  === "none" ? "flex" : "none";
+      abortForm.style.display = "none";
     }}, ["Erledigt"]);
+
+    const btnAbort = h("button", { class: "btn secondary", type: "button", ...(locked ? { disabled: "true" } : {}), style: "min-height:48px;", onclick: () => {
+      abortForm.style.display = abortForm.style.display === "none" ? "flex" : "none";
+      doneForm.style.display  = "none";
+    }}, ["Abbruch"]);
 
     return h("div", { class: "item" }, [
       h("div", { class: "badge task" }, ["👑"]),
       h("div", { class: "item-main" }, [
         h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
         h("div", { class: "item-sub" }, [meta]),
-        h("div", { class: "row", style: "margin-top:10px; gap:10px" }, [
+        h("div", { class: "row", style: "margin-top:10px;gap:8px;flex-wrap:wrap;" }, [
           t.status === "offen" ? btnAccept : null,
           btnDone, btnAbort,
           locked ? h("div", { class: "small" }, ["(gesperrt bis Fälligkeit)"]) : null,
         ].filter(Boolean)),
-        feedbackForm,
+        doneForm, abortForm,
       ])
     ]);
-  });
+  }
+
+  function buildDoneCard(t) {
+    const isErledigt = t.status === "erledigt";
+    const meta = [
+      t.doneAt    ? `Erledigt: ${fmtDateTimeLocal(t.doneAt)}` : "",
+      t.updatedAt && !t.doneAt ? `Aktualisiert: ${fmtDateTimeLocal(t.updatedAt)}` : "",
+      t.schwierigkeit ? `Schwierigkeit: ${t.schwierigkeit}/5` : "",
+      t.gerne         ? `Gerne: ${t.gerne}/5` : "",
+      t.rueckmeldung  ? `Notiz: ${t.rueckmeldung}` : "",
+      t.belegWA       ? "📱 Beleg per WhatsApp" : "",
+    ].filter(Boolean).join("\n");
+
+    return h("div", { class: "item", style: "opacity:0.75;" }, [
+      h("div", { class: "badge task", style: isErledigt ? "background:rgba(100,200,120,.15)" : "background:rgba(200,80,80,.12)" }, [isErledigt ? "✓" : "✗"]),
+      h("div", { class: "item-main" }, [
+        h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
+        h("div", { class: "item-sub" }, [meta]),
+      ])
+    ]);
+  }
+
+  const refreshBtn = h("button", { class: "btn secondary", type: "button", style: "min-height:44px;", onclick: async () => {
+    toast("Lade…"); await loadAnjaTasks(); render(); toast("Aktualisiert.");
+  }}, ["🔄"]);
 
   return h("div", { class: "card" }, [
-    sectionTitle("👑", "Inbox von Anja", h("button", { class: "btn secondary", type: "button", onclick: async () => {
-      toast("Lade…"); await loadAnjaTasks(); render(); toast("Aktualisiert.");
-    }}, ["🔄"])),
-    active.length ? h("div", { class: "list" }, cards) : h("div", { class: "small" }, ["Keine offenen Aufgaben von Anja."])
-  ]);
+    sectionTitle("👑", "Aufgaben", refreshBtn),
+    active.length
+      ? h("div", { class: "list" }, active.map(buildActiveCard))
+      : h("div", { class: "small" }, ["Keine offenen Aufgaben."]),
+    done.length ? h("div", { class: "hr", style: "margin:16px 0" }, []) : null,
+    done.length ? h("div", { class: "small", style: "margin-bottom:8px;font-weight:700;" }, ["Abgeschlossen"]) : null,
+    done.length ? h("div", { class: "list" }, done.map(buildDoneCard)) : null,
+  ].filter(Boolean));
 }
 
 function renderTasks() {
