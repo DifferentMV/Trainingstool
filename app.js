@@ -283,8 +283,21 @@ async function setAnjaTaskStatus(taskId, status, feedback = {}) {
   if (feedback.schwierigkeit !== undefined) task.schwierigkeit = feedback.schwierigkeit;
   if (feedback.gerne         !== undefined) task.gerne         = feedback.gerne;
   if (feedback.belegWA       !== undefined) task.belegWA       = feedback.belegWA;
-  if (status === "erledigt")   task.doneAt     = nowISO();
-  if (status === "angenommen") task.acceptedAt = nowISO();
+  if (status === "erledigt")   { task.doneAt = nowISO(); }
+  if (status === "angenommen") { task.acceptedAt = nowISO(); }
+  // In Log schreiben
+  if (status === "erledigt" || status === "abgebrochen") {
+    addLogEntry({
+      id: `log-anja-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      typ: "aufgabe", dayKey: todayKey(), createdAt: nowISO(),
+      title: task.title || "Aufgabe",
+      status,
+      schwierigkeit: feedback.schwierigkeit || null,
+      gerne: feedback.gerne || null,
+      rueckmeldung: feedback.rueckmeldung || "",
+      belegWA: feedback.belegWA || false,
+    });
+  }
   try {
     const patch = { status, updatedAt: task.updatedAt };
     if (feedback.rueckmeldung  !== undefined) patch.rueckmeldung  = feedback.rueckmeldung;
@@ -856,13 +869,35 @@ function renderGoals() {
     const { period, min, max, done } = computeGoalQuota(g);
     const freq = period === "TAG" ? `Heute: ${done} / ${min}–${max || min}` : `Diese Woche: ${done} / ${min}–${max || min}`;
     const mod  = g.modus === "ritualisiert" ? `ritualisiert ${g.feste_zeit || "09:00"}` : `flexibel ${g.zeit_von || "14:00"}–${g.zeit_bis || "20:00"}`;
+
+    const btnBack = h("button", { class: "btn secondary", type: "button",
+      style: "min-height:44px;",
+      ...(g.aktuelle_stufe <= 1 ? { disabled: "true" } : {}),
+      onclick: () => {
+        setGoalOverride(g.ziel_id, { aktuelle_stufe: Math.max(1, g.aktuelle_stufe - 1) });
+        toast(`${g.ziel_name}: Stufe ${g.aktuelle_stufe - 1}`);
+        regenIfNeeded(true); render();
+      }
+    }, ["◀ Stufe"]);
+
+    const btnFwd = h("button", { class: "btn secondary", type: "button",
+      style: "min-height:44px;",
+      ...(g.aktuelle_stufe >= g.max_stufe ? { disabled: "true" } : {}),
+      onclick: () => {
+        setGoalOverride(g.ziel_id, { aktuelle_stufe: Math.min(g.max_stufe, g.aktuelle_stufe + 1) });
+        toast(`${g.ziel_name}: Stufe ${g.aktuelle_stufe + 1}`);
+        regenIfNeeded(true); render();
+      }
+    }, ["Stufe ▶"]);
+
     return h("div", { class: "item" }, [
       h("div", { class: "badge goal" }, ["🎯"]),
       h("div", { class: "item-main" }, [
         h("div", { class: "item-title" }, [g.ziel_name]),
         h("div", { class: "item-sub" },   [`Stufe ${g.aktuelle_stufe} von ${g.max_stufe}\n${freq}\n${mod}`]),
-        h("div", { class: "row", style: "margin-top:10px" }, [
-          h("button", { class: "btn secondary", type: "button", onclick: () => toggleGoalActive(g.ziel_id) }, [g.aktiv ? "Pausieren" : "Aktivieren"]),
+        h("div", { class: "row", style: "margin-top:10px;gap:8px;flex-wrap:wrap;" }, [
+          h("button", { class: "btn secondary", type: "button", style: "min-height:44px;", onclick: () => toggleGoalActive(g.ziel_id) }, [g.aktiv ? "Pausieren" : "Aktivieren"]),
+          btnBack, btnFwd,
         ])
       ])
     ]);
@@ -985,6 +1020,15 @@ function renderAnjaInbox() {
       doneForm.style.display  = "none";
     }}, ["Abbruch"]);
 
+    const btnDelete = h("button", { class: "btn secondary", type: "button", style: "min-height:48px;color:#c25d6a;border-color:rgba(194,93,106,.4);", onclick: async () => {
+      if (!t._fbKey) { toast("Kein Firebase-Key."); return; }
+      try {
+        await fbPatch(`anja_tasks/${t._fbKey}`, { status: "geloescht", updatedAt: nowISO() });
+        state.anjaTasks = state.anjaTasks.filter(x => x._fbKey !== t._fbKey);
+        toast("Aufgabe gelöscht."); render();
+      } catch (e) { toast("Fehler beim Löschen."); }
+    }}, ["🗑"]);
+
     return h("div", { class: "item" }, [
       h("div", { class: "badge task" }, ["👑"]),
       h("div", { class: "item-main" }, [
@@ -992,7 +1036,7 @@ function renderAnjaInbox() {
         h("div", { class: "item-sub" }, [meta]),
         h("div", { class: "row", style: "margin-top:10px;gap:8px;flex-wrap:wrap;" }, [
           t.status === "offen" ? btnAccept : null,
-          btnDone, btnAbort,
+          btnDone, btnAbort, btnDelete,
           locked ? h("div", { class: "small" }, ["(gesperrt bis Fälligkeit)"]) : null,
         ].filter(Boolean)),
         doneForm, abortForm,
@@ -1105,11 +1149,16 @@ function renderLog() {
       if (e.uebung)       subLines.push(`Übung: ${e.uebung}`);
       if (e.rueckmeldung) subLines.push(`Rückmeldung: ${e.rueckmeldung}`);
       if (e.gern)         subLines.push(`Gern: ${e.gern}/5`);
+    } else {
+      if (e.schwierigkeit) subLines.push(`Schwierigkeit: ${e.schwierigkeit}/5`);
+      if (e.gerne)         subLines.push(`Gerne: ${e.gerne}/5`);
+      if (e.rueckmeldung)  subLines.push(`Notiz: ${e.rueckmeldung}`);
+      if (e.belegWA)       subLines.push("📱 Beleg per WhatsApp");
     }
     if (e.status) subLines.push(`Status: ${e.status}`);
     if (e.notiz)  subLines.push(`Notiz: ${e.notiz}`);
     return h("div", { class: "item" }, [
-      h("div", { class: "badge " + (isGoal ? "goal" : "task") }, [isGoal ? "🎯" : "🧩"]),
+      h("div", { class: "badge " + (isGoal ? "goal" : "task") }, [isGoal ? "🎯" : "👑"]),
       h("div", { class: "item-main" }, [
         h("div", { class: "item-title" }, [isGoal ? `${e.ziel_name} – Stufe ${e.stufe}` : (e.title || "Aufgabe")]),
         h("div", { class: "item-sub" },   [`${new Date(e.createdAt).toLocaleString("de-DE")}\n${subLines.join("\n")}`])
