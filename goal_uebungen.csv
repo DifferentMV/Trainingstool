@@ -1,46 +1,65 @@
-﻿ziel_id;stufe;uebung_id;titel;klasse
+ziel_id;stufe;uebung_id;titel;klasse
 KV;1;kv_1_01;Ansehen (30 Sek bewusst atmen);soft
-KV;1;kv_1_02;Riechen (1x2 Sek);pflicht
-KV;2;kv_2_01;Mit Handschuh anfassen;pflicht
-KV;2;kv_2_02;Ohne Handschuh kurz anfassen;hard
-KV;3;kv_3_01;Minimaler Kontakt an Lippen (1 Sek);heavy
-KV;4;kv_4_01;Sehr kleine Menge aufnehmen;heavy
+KV;1;kv_1_02;Riechen (1x2 Sek, Abstand 10cm);soft
+KV;1;kv_1_03;Riechen (1x5 Sek, nah);pflicht
+KV;2;kv_2_01;Mit Handschuh kurz anfassen;pflicht
+KV;2;kv_2_02;Mit Handschuh halten (10 Sek);pflicht
+KV;2;kv_2_03;Ohne Handschuh kurz anfassen (1 Sek);hard
+KV;3;kv_3_01;Ohne Handschuh halten (10 Sek);hard
+KV;3;kv_3_02;An Lippen halten ohne Kontakt (nur Geruch);hard
+KV;3;kv_3_03;Minimaler Lippenkontakt (1 Sek);heavy
+KV;4;kv_4_01;Sehr kleine Menge auf Zunge (nicht schlucken);heavy
+KV;4;kv_4_02;Kleine Menge aufnehmen und halten (5 Sek);heavy
 KV;5;kv_5_01;Kleine definierte Menge essen;heavy
-ANAL;1;an_1_01;Kleiner Plug Tunnel (Meo-schwarz) 60 Min;soft
-ANAL;1;an_1_02;Plug klein 30 Minuten;soft
-ANAL;2;an_1_01;Plug Klein 60 Minuten;pflicht
-ANAL;2;an_1_02;Plug mittel 30 Minuten;pflicht
-ANAL;2;an_2_01;Plug mittel 60 Minuten;hard
-ANAL;3;an_3_01;Dehnung 3 Atemzyklen;hard
-ANAL;4;an_4_01;Größerer Plug (kurz);heavy
-ANAL;5;an_5_01;Zielstufe: maximale Toleranz (kurz);heavy
-EDGING;1;ed_1_01;Edging 5 Minuten;soft
-EDGING;2;ed_2_01;Edging 10 Minuten;pflicht
-EDGING;3;ed_3_01;Edging 15 Minuten;hard
-EDGING;4;ed_4_01;Edging 20 Minuten;heavy
-EDGING;5;ed_5_01;Edging 30 Minuten;heavy
-NS;1;ns_01_01;Hand in Strahl halten;Soft
-NS;2;ns_01_02;Finger in Strahl halten und ablecken;Soft
-NS;1;ns_02_01;Kleinen Schluck trinken;pflicht
-NS;2;ns_03_01;mittleren Schluck trinken;hard
-NS;2;ns_04_01;Getränk mit NS mischen;hard
-NS;3;ns_05_01;Glas NS trinken;heavy
-NS;4;ns_05_02;als Nasenspray/Nasentropfen verwenden;heavy
-NS;3;ns_05_01;Als Haarspülung verwenden;heavy
-NS;3;ns_05_01;Getränk mit NS trinken;heavy
-NS;3;ns_05_01;Gesicht einreiben und trocknen lassen;heavy
-ANALTunnel;1;ant_1_01;Kleiner Plug Tunnel (Meo-schwarz) 60 Min;soft
-ANALTunnel;1;ant_1_02;Kleiner Plug Tunnel (Meo-schwarz) 3h;pflicht
-ANALTunnel;1;ant_1_03;Kleiner Plug Tunnel (Meo-schwarz) 6h;hard
-ANALTunnel;1;ant_1_04;Kleiner Plug Tunnel (Meo-schwarz) 12h;heavy
-ANALTunnel;2;ant_2_01;Kleiner Plug Tunnel (Meo-schwarz) 24h;soft
-ANALTunnel;2;ant_2_02;Mittlerer Plug Tunnel (Chrome) 60min;soft
-ANALTunnel;2;ant_2_03;Mittlerer Plug Tunnel (Chrome) 3h;pflicht
-ANALTunnel;2;ant_2_04;Mittlerer Plug Tunnel (Chrome) 6h;hard
-ANALTunnel;2;ant_2_05;Mittlerer Plug Tunnel (Chrome) 12h;heavy
-ANALTunnel;3;ant_3_01;Mittlerer Plug Tunnel (Chrome) 24h;soft
-ANALTunnel;3;ant_3_02;großer Plug Tunnel (schwarz) 1h;soft
-ANALTunnel;3;ant_3_03;großer Plug Tunnel (schwarz) 3h;pflicht
-ANALTunnel;3;ant_3_04;großer Plug Tunnel (schwarz) 6h;hard
-ANALTunnel;3;ant_3_05;großer Plug Tunnel (schwarz) 12h;hard
-ANALTunnel;3;ant_3_06;großer Plug Tunnel (schwarz) 24h;heavy
+KV;5;kv_5_02;Frische kleine Menge essen;heavy
+ANAL;1;an_1_01;Kleiner Plug (Meo-schwarz) 30 Minuten;soft
+ANAL;1;an_1_02;Kleiner Plug (Meo-schwarz) 60 Minuten;pflicht
+ANAL;2;an_2_01;Kleiner Plug 60 Minuten mit Bewegung;pflicht
+ANAL;2;an_2_02;Mittlerer Plug 30 Minuten;pflicht
+ANAL;2;an_2_03;Mittlerer Plug 60 Minuten;hard
+ANAL;3;an_3_01;Mittlerer Plug 60 Min + Dehnung 3 Atemzyklen danach;hard
+ANAL;3;an_3_02;Großer Plug kurz einführen (Atemtechnik);hard
+ANAL;3;an_3_03;Großer Plug 15 Minuten halten;hard
+ANAL;4;an_4_01;Großer Plug 30 Minuten;heavy
+ANAL;4;an_4_02;Großer Plug 60 Minuten;heavy
+ANAL;5;an_5_01;Maximale Toleranz 30 Minuten;heavy
+ANAL;5;an_5_02;Vier Finger vollständig (Fisting-Vorbereitung);heavy
+EDGING;1;ed_1_01;Edging 5 Minuten (1 Stopp);soft
+EDGING;1;ed_1_02;Edging 5 Minuten (3 Stopps);pflicht
+EDGING;2;ed_2_01;Edging 10 Minuten (3 Stopps);pflicht
+EDGING;2;ed_2_02;Edging 10 Minuten (5 Stopps);hard
+EDGING;3;ed_3_01;Edging 15 Minuten (5 Stopps);hard
+EDGING;3;ed_3_02;Edging 15 Minuten ohne Orgasmus beenden;hard
+EDGING;4;ed_4_01;Edging 20 Minuten ohne Orgasmus;heavy
+EDGING;4;ed_4_02;Ruinierter Orgasmus nach 20 Min Edging;heavy
+EDGING;5;ed_5_01;Edging 30 Minuten ohne Orgasmus;heavy
+EDGING;5;ed_5_02;Dry Orgasm Versuch nach 30 Min Edging;heavy
+NS;1;ns_1_01;Hand in Strahl halten (5 Sek);soft
+NS;1;ns_1_02;Hand in Strahl halten (30 Sek);soft
+NS;2;ns_2_01;Finger ablecken nach Strahl;soft
+NS;2;ns_2_02;Kleinen Schluck trinken (pur);pflicht
+NS;2;ns_2_03;Getränk mit kleiner NS-Menge mischen und trinken;hard
+NS;3;ns_3_01;Mittleren Schluck trinken (pur);hard
+NS;3;ns_3_02;Gesicht einreiben und trocknen lassen;hard
+NS;3;ns_3_03;Als Haarspülung verwenden;hard
+NS;3;ns_3_04;Getränk mit NS mischen und vollständig trinken;hard
+NS;4;ns_4_01;Glas NS pur trinken;heavy
+NS;4;ns_4_02;Als Nasenspray verwenden;heavy
+NS;4;ns_4_03;Morgenritual mit Erektion – Ergebnis an Anja melden;heavy
+NS;5;ns_5_01;NS-Dusche: Gesicht und Haare;heavy
+NS;5;ns_5_02;NS-Enema (kleine Menge);heavy
+ANALTunnel;1;ant_1_01;Kleiner Tunnel (Meo-schwarz) 60 Min;soft
+ANALTunnel;1;ant_1_02;Kleiner Tunnel (Meo-schwarz) 3h;pflicht
+ANALTunnel;1;ant_1_03;Kleiner Tunnel (Meo-schwarz) 6h;hard
+ANALTunnel;1;ant_1_04;Kleiner Tunnel (Meo-schwarz) 12h;heavy
+ANALTunnel;2;ant_2_01;Kleiner Tunnel (Meo-schwarz) 24h;soft
+ANALTunnel;2;ant_2_02;Mittlerer Tunnel (Chrome) 60 Min;soft
+ANALTunnel;2;ant_2_03;Mittlerer Tunnel (Chrome) 3h;pflicht
+ANALTunnel;2;ant_2_04;Mittlerer Tunnel (Chrome) 6h;hard
+ANALTunnel;2;ant_2_05;Mittlerer Tunnel (Chrome) 12h;heavy
+ANALTunnel;3;ant_3_01;Mittlerer Tunnel (Chrome) 24h;soft
+ANALTunnel;3;ant_3_02;Großer Tunnel (schwarz) 1h;soft
+ANALTunnel;3;ant_3_03;Großer Tunnel (schwarz) 3h;pflicht
+ANALTunnel;3;ant_3_04;Großer Tunnel (schwarz) 6h;hard
+ANALTunnel;3;ant_3_05;Großer Tunnel (schwarz) 12h;hard
+ANALTunnel;3;ant_3_06;Großer Tunnel (schwarz) 24h;heavy
