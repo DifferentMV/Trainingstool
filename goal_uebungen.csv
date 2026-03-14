@@ -21,14 +21,14 @@ EDGING;4;ed_4_01;Edging 20 Minuten;heavy
 EDGING;5;ed_5_01;Edging 30 Minuten;heavy
 NS;1;ns_01_01;Hand in Strahl halten;Soft
 NS;2;ns_01_02;Finger in Strahl halten und ablecken;Soft
-NS;;ns_02_01;Kleinen Schluck trinken;pflicht
-NS;;ns_03_01;mittleren Schluck trinken;hard
-NS;;ns_04_01;Getränk mit NS mischen;hard
-NS;;ns_05_01;Glas NS trinken;heavy
-NS;;ns_05_02;als Nasenspray/Nasentropfen verwenden;heavy
-NS;;ns_05_01;Als Haarspülung verwenden;heavy
-NS;;ns_05_01;Getränk mit NS trinken;heavy
-NS;;ns_05_01;Gesicht einreiben und trocknen lassen;heavy
+NS;1;ns_02_01;Kleinen Schluck trinken;pflicht
+NS;2;ns_03_01;mittleren Schluck trinken;hard
+NS;2;ns_04_01;Getränk mit NS mischen;hard
+NS;3;ns_05_01;Glas NS trinken;heavy
+NS;4;ns_05_02;als Nasenspray/Nasentropfen verwenden;heavy
+NS;3;ns_05_01;Als Haarspülung verwenden;heavy
+NS;3;ns_05_01;Getränk mit NS trinken;heavy
+NS;3;ns_05_01;Gesicht einreiben und trocknen lassen;heavy
 ANALTunnel;1;ant_1_01;Kleiner Plug Tunnel (Meo-schwarz) 60 Min;soft
 ANALTunnel;1;ant_1_02;Kleiner Plug Tunnel (Meo-schwarz) 3h;pflicht
 ANALTunnel;1;ant_1_03;Kleiner Plug Tunnel (Meo-schwarz) 6h;hard
