@@ -749,6 +749,7 @@ function renderAnja() {
     loading: "lazy",
   });
 
+  // Aktive Ziele
   const activeGoals = getGoalsNormalized().filter(g => g.aktiv);
   const goalItems = activeGoals.map(g => {
     const { period, done, min, max } = computeGoalQuota(g);
@@ -770,12 +771,32 @@ function renderAnja() {
       : h("div", { class: "small" }, ["Keine aktiven Ziele."]),
   ]);
 
+  // Offene Aufgaben
+  const openTasks = state.anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen");
+  const openTaskItems = openTasks.map(t => h("div", { class: "item" }, [
+    h("div", { class: "badge task" }, ["👑"]),
+    h("div", { class: "item-main" }, [
+      h("div", { class: "item-title" }, [t.title || "Aufgabe"]),
+      h("div", { class: "item-sub" }, [
+        [`Status: ${t.status}`, t.dueAt ? `Fällig: ${fmtDateTimeLocal(t.dueAt)}` : ""].filter(Boolean).join(" · ")
+      ]),
+    ])
+  ]));
+
+  const aufgabenCard = h("div", { class: "card" }, [
+    sectionTitle("👑", "Offene Aufgaben", null),
+    openTasks.length
+      ? h("div", { class: "list" }, openTaskItems)
+      : h("div", { class: "small" }, ["Keine offenen Aufgaben."]),
+  ]);
+
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
       sectionTitle("👑", "Dom", btnBack),
       h("div", { class: "small" }, ["Ziele & Aufgaben – geräteübergreifend via Firebase."]),
     ]),
     zieleCard,
+    aufgabenCard,
     h("div", { class: "card" }, [
       h("div", { style: "font-weight:900;font-size:16px;margin-bottom:8px" }, ["Aufgaben erstellen"]),
       h("div", { class: "hr" }, []),
@@ -783,6 +804,7 @@ function renderAnja() {
     ]),
   ]);
 }
+
 function renderHome() {
   regenIfNeeded(false);
   const schedule = getSchedule();
@@ -859,18 +881,26 @@ function ratingRow(label) {
     b.className = "btn secondary";
     b.type = "button";
     b.textContent = String(n);
-    b.style.cssText = "min-width:48px;min-height:48px;font-size:18px;font-weight:700;";
+    b.style.cssText = "min-width:52px;min-height:52px;font-size:20px;font-weight:700;border-radius:12px;";
     return b;
   });
   const row = h("div", { style: "display:flex;flex-direction:column;gap:6px;margin-top:8px;" }, [
     h("div", { class: "small" }, [label]),
-    h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;" }, btnEls)
+    h("div", { style: "display:flex;gap:10px;flex-wrap:wrap;" }, btnEls)
   ]);
   row.dataset.selected = "";
   btnEls.forEach((b, i) => {
     b.addEventListener("click", () => {
-      btnEls.forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
+      btnEls.forEach(x => {
+        x.style.background = "";
+        x.style.borderColor = "";
+        x.style.color = "";
+        x.style.transform = "";
+      });
+      b.style.background = "rgba(164,107,138,.8)";
+      b.style.borderColor = "rgba(164,107,138,1)";
+      b.style.color = "#fff";
+      b.style.transform = "scale(1.15)";
       row.dataset.selected = String(i + 1);
     });
   });
@@ -879,7 +909,9 @@ function ratingRow(label) {
 
 function renderAnjaInbox() {
   const active  = state.anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen");
-  const done    = state.anjaTasks.filter(t => t.status === "erledigt" || t.status === "abgebrochen");
+  const done    = state.anjaTasks
+    .filter(t => t.status === "erledigt" || t.status === "abgebrochen")
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
   const canExecute = t => !t.dueAt || new Date(t.dueAt) <= new Date();
 
   function buildActiveCard(t) {
@@ -895,8 +927,8 @@ function renderAnjaInbox() {
     }}, ["Annehmen"]);
 
     // ── Erledigt-Formular ──
-    const schwRow  = ratingRow("Schwierigkeit (1=leicht, 5=schwer)", "schw");
-    const gerneRow = ratingRow("Wie gerne? (1=widerwillig, 5=sehr gerne)", "gerne");
+    const schwRow  = ratingRow("Schwierigkeit (1=leicht, 5=schwer)");
+    const gerneRow = ratingRow("Wie gerne? (1=widerwillig, 5=sehr gerne)");
     const txtNote  = h("textarea", { class: "textarea", placeholder: "Anmerkung (optional)…", style: "min-height:56px;font-size:14px;" }, []);
     const cbWA     = h("input", { type: "checkbox", id: `wa_${t.id}`, style: "width:22px;height:22px;" });
     const waLabel  = h("label", { style: "display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)" }, [cbWA, "Beleg kommt per WhatsApp"]);
