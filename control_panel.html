@@ -418,7 +418,10 @@ function renderTaskStatus() {
       meta.className = "small";
       meta.textContent = [
         t.doneAt ? `Erledigt: ${fmtDateTime(t.doneAt)}` : "",
-        t.rueckmeldung ? `Rückmeldung: ${t.rueckmeldung}` : ""
+        t.schwierigkeit ? `Schwierigkeit: ${t.schwierigkeit}/5` : "",
+        t.gerne         ? `Gerne: ${t.gerne}/5` : "",
+        t.rueckmeldung  ? `Notiz: ${t.rueckmeldung}` : "",
+        t.belegWA       ? "📱 Beleg per WhatsApp" : "",
       ].filter(Boolean).join(" · ");
 
       left.appendChild(title);
