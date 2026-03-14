@@ -646,20 +646,27 @@ function unitDetailModal(unit) {
 
   let chosenStatus = null, rueck = null;
 
-  function setBtnActive(btn) {
-    [body.querySelector("#btnDone"), body.querySelector("#btnAbort")].forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-  }
-  function setFbActive(btn) {
-    [body.querySelector("#fb1"), body.querySelector("#fb2"), body.querySelector("#fb3")].forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
+  function activateBtn(btn, group) {
+    group.forEach(b => {
+      b.style.background = "";
+      b.style.color = "";
+      b.style.borderColor = "";
+      b.style.fontWeight = "";
+    });
+    btn.style.background = "rgba(164,107,138,.9)";
+    btn.style.color = "#fff";
+    btn.style.borderColor = "rgba(164,107,138,1)";
+    btn.style.fontWeight = "900";
   }
 
-  body.querySelector("#btnDone").onclick  = () => { chosenStatus = "erledigt";    setBtnActive(body.querySelector("#btnDone")); };
-  body.querySelector("#btnAbort").onclick = () => { chosenStatus = "abgebrochen"; setBtnActive(body.querySelector("#btnAbort")); };
-  body.querySelector("#fb1").onclick      = () => { rueck = "leicht"; setFbActive(body.querySelector("#fb1")); };
-  body.querySelector("#fb2").onclick      = () => { rueck = "okay";   setFbActive(body.querySelector("#fb2")); };
-  body.querySelector("#fb3").onclick      = () => { rueck = "schwer"; setFbActive(body.querySelector("#fb3")); };
+  const statusBtns = [body.querySelector("#btnDone"), body.querySelector("#btnAbort")];
+  const fbBtns     = [body.querySelector("#fb1"), body.querySelector("#fb2"), body.querySelector("#fb3")];
+
+  body.querySelector("#btnDone").onclick  = () => { chosenStatus = "erledigt";    activateBtn(body.querySelector("#btnDone"),  statusBtns); };
+  body.querySelector("#btnAbort").onclick = () => { chosenStatus = "abgebrochen"; activateBtn(body.querySelector("#btnAbort"), statusBtns); };
+  body.querySelector("#fb1").onclick      = () => { rueck = "leicht"; activateBtn(body.querySelector("#fb1"), fbBtns); };
+  body.querySelector("#fb2").onclick      = () => { rueck = "okay";   activateBtn(body.querySelector("#fb2"), fbBtns); };
+  body.querySelector("#fb3").onclick      = () => { rueck = "schwer"; activateBtn(body.querySelector("#fb3"), fbBtns); };
 
   btnSave.onclick = () => {
     if (!chosenStatus) { toast("Bitte: Geschafft oder Abgebrochen wählen."); return; }
