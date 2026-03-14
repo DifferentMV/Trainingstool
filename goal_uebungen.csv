@@ -1,53 +1,59 @@
 ziel_id;stufe;uebung_id;titel;klasse
-KV;1;kv_1_01;Ansehen (30 Sek bewusst atmen);soft
-KV;1;kv_1_02;Riechen (1x2 Sek, Abstand 10cm);soft
-KV;1;kv_1_03;Riechen (1x5 Sek, nah);pflicht
-KV;2;kv_2_01;Mit Handschuh kurz anfassen;pflicht
-KV;2;kv_2_02;Mit Handschuh halten (10 Sek);pflicht
-KV;2;kv_2_03;Ohne Handschuh kurz anfassen (1 Sek);hard
-KV;3;kv_3_01;Ohne Handschuh halten (10 Sek);hard
-KV;3;kv_3_02;An Lippen halten ohne Kontakt (nur Geruch);hard
-KV;3;kv_3_03;Minimaler Lippenkontakt (1 Sek);heavy
-KV;4;kv_4_01;Sehr kleine Menge auf Zunge (nicht schlucken);heavy
-KV;4;kv_4_02;Kleine Menge aufnehmen und halten (5 Sek);heavy
+KV;1;kv_1_01;Ansehen (30 Sek) – bewusst neutral bleiben;soft
+KV;1;kv_1_02;Riechen (2 Sek, Abstand) – Reaktion beobachten;soft
+KV;1;kv_1_03;Riechen (5 Sek, nah) – Atemreaktion halten;pflicht
+KV;2;kv_2_01;Mit Handschuh anfassen und halten (10 Sek);pflicht
+KV;2;kv_2_02;Ohne Handschuh kurz anfassen (1–2 Sek);pflicht
+KV;2;kv_2_03;Ohne Handschuh einreiben (Unterarm, 10 Sek);hard
+KV;3;kv_3_01;Einreiben Brust/Bauch (30 Sek);hard
+KV;3;kv_3_02;Einreiben Genital (kurz, 10 Sek);hard
+KV;3;kv_3_03;An Lippen halten – nur Geruch, kein Kontakt;hard
+KV;4;kv_4_01;Minimaler Lippenkontakt (1 Sek);heavy
+KV;4;kv_4_02;Kleine Menge auf Zunge halten (nicht schlucken);heavy
+KV;4;kv_4_03;Einreiben Genital (länger) + Erregungscheck;heavy
 KV;5;kv_5_01;Kleine definierte Menge essen;heavy
 KV;5;kv_5_02;Frische kleine Menge essen;heavy
-ANAL;1;an_1_01;Kleiner Plug (Meo-schwarz) 30 Minuten;soft
-ANAL;1;an_1_02;Kleiner Plug (Meo-schwarz) 60 Minuten;pflicht
-ANAL;2;an_2_01;Kleiner Plug 60 Minuten mit Bewegung;pflicht
-ANAL;2;an_2_02;Mittlerer Plug 30 Minuten;pflicht
-ANAL;2;an_2_03;Mittlerer Plug 60 Minuten;hard
-ANAL;3;an_3_01;Mittlerer Plug 60 Min + Dehnung 3 Atemzyklen danach;hard
-ANAL;3;an_3_02;Großer Plug kurz einführen (Atemtechnik);hard
-ANAL;3;an_3_03;Großer Plug 15 Minuten halten;hard
-ANAL;4;an_4_01;Großer Plug 30 Minuten;heavy
-ANAL;4;an_4_02;Großer Plug 60 Minuten;heavy
-ANAL;5;an_5_01;Maximale Toleranz 30 Minuten;heavy
-ANAL;5;an_5_02;Vier Finger vollständig (Fisting-Vorbereitung);heavy
-EDGING;1;ed_1_01;Edging 5 Minuten (1 Stopp);soft
-EDGING;1;ed_1_02;Edging 5 Minuten (3 Stopps);pflicht
-EDGING;2;ed_2_01;Edging 10 Minuten (3 Stopps);pflicht
-EDGING;2;ed_2_02;Edging 10 Minuten (5 Stopps);hard
-EDGING;3;ed_3_01;Edging 15 Minuten (5 Stopps);hard
-EDGING;3;ed_3_02;Edging 15 Minuten ohne Orgasmus beenden;hard
-EDGING;4;ed_4_01;Edging 20 Minuten ohne Orgasmus;heavy
-EDGING;4;ed_4_02;Ruinierter Orgasmus nach 20 Min Edging;heavy
-EDGING;5;ed_5_01;Edging 30 Minuten ohne Orgasmus;heavy
-EDGING;5;ed_5_02;Dry Orgasm Versuch nach 30 Min Edging;heavy
-NS;1;ns_1_01;Hand in Strahl halten (5 Sek);soft
-NS;1;ns_1_02;Hand in Strahl halten (30 Sek);soft
-NS;2;ns_2_01;Finger ablecken nach Strahl;soft
-NS;2;ns_2_02;Kleinen Schluck trinken (pur);pflicht
+ANAL;1;an_1_01;Kleiner Plug (Meo-schwarz) 30 Min;soft
+ANAL;1;an_1_02;Kleiner Plug (Meo-schwarz) 60 Min;pflicht
+ANAL;2;an_2_01;Kleiner Plug 60 Min mit aktiver Bewegung;pflicht
+ANAL;2;an_2_02;Mittlerer Plug 30 Min;pflicht
+ANAL;2;an_2_03;Mittlerer Plug 60 Min;hard
+ANAL;3;an_3_01;Großer Plug einführen (Atemtechnik, kurz halten);hard
+ANAL;3;an_3_02;Großer Plug 15 Min halten;hard
+ANAL;3;an_3_03;Mittlerer Plug + Dehnung danach (3 Atemzyklen weit);hard
+ANAL;4;an_4_01;Großer Plug 30 Min;heavy
+ANAL;4;an_4_02;Großer Plug 60 Min;heavy
+ANAL;4;an_4_03;Drei Finger vollständig – halten (Fisting-Vorbereitung);heavy
+ANAL;5;an_5_01;Vier Finger vollständig – ruhig halten;heavy
+ANAL;5;an_5_02;Vier Finger + leichte Bewegung (Fisting-Vorbereitung aktiv);heavy
+ANAL;5;an_5_03;Maximale Weite halten (30 Min Plug + Dehnung nachher);heavy
+EDGING;1;ed_1_01;Edging 5 Min – auf Stopp-Kommando stoppen;soft
+EDGING;1;ed_1_02;Edging 5 Min (3 Stopps auf Kommando);pflicht
+EDGING;2;ed_2_01;Edging 10 Min – Stopps auf Kommando (3x);pflicht
+EDGING;2;ed_2_02;Edging 10 Min – Kommando "Stopp" ohne Vorwarnung;hard
+EDGING;3;ed_3_01;Edging 15 Min – nur auf Kommando orgasmieren erlaubt;hard
+EDGING;3;ed_3_02;Edging 15 Min – Kommando "Jetzt" als Orgasmus-Trigger üben;hard
+EDGING;4;ed_4_01;Edging 20 Min – Orgasmus nur auf "Jetzt" (Anja);heavy
+EDGING;4;ed_4_02;Ruinierter Orgasmus auf Kommando;heavy
+EDGING;5;ed_5_01;Orgasmus auf einmaliges Kommando ohne Edging-Vorlauf;heavy
+EDGING;5;ed_5_02;Dry Orgasm auf Kommando (Zielübung);heavy
+NS;1;ns_1_01;Hand in Strahl halten (5 Sek) – Geruch bewusst wahrnehmen;soft
+NS;1;ns_1_02;Hand in Strahl halten (30 Sek) – Reaktion protokollieren;soft
+NS;1;ns_1_03;Geruch aktiv einatmen – neutrales Erleben anstreben;pflicht
+NS;2;ns_2_01;Finger in Strahl + ablecken – Geschmack beschreiben;soft
+NS;2;ns_2_02;Kleinen Schluck trinken – Erregungsgrad danach notieren;pflicht
 NS;2;ns_2_03;Getränk mit kleiner NS-Menge mischen und trinken;hard
-NS;3;ns_3_01;Mittleren Schluck trinken (pur);hard
-NS;3;ns_3_02;Gesicht einreiben und trocknen lassen;hard
-NS;3;ns_3_03;Als Haarspülung verwenden;hard
-NS;3;ns_3_04;Getränk mit NS mischen und vollständig trinken;hard
-NS;4;ns_4_01;Glas NS pur trinken;heavy
-NS;4;ns_4_02;Als Nasenspray verwenden;heavy
-NS;4;ns_4_03;Morgenritual mit Erektion – Ergebnis an Anja melden;heavy
-NS;5;ns_5_01;NS-Dusche: Gesicht und Haare;heavy
-NS;5;ns_5_02;NS-Enema (kleine Menge);heavy
+NS;2;ns_2_04;NS über Körper laufen lassen – Geruch beim Trocknen wahrnehmen;hard
+NS;3;ns_3_01;Mittleren Schluck pur trinken – auf Erektion achten;hard
+NS;3;ns_3_02;Gesicht einreiben – trocknen lassen, Geruch aktiv wahrnehmen;hard
+NS;3;ns_3_03;Als Haarspülung – einmassieren, kurz einwirken lassen;hard
+NS;3;ns_3_04;Morgenritual: mit Erektion versuchen – Ergebnis an Anja melden;hard
+NS;4;ns_4_01;Glas NS pur trinken – Gedanke daran soll Erregung auslösen;heavy
+NS;4;ns_4_02;Morgenritual täglich 7 Tage – Erektion als Ziel;heavy
+NS;4;ns_4_03;NS-Dusche Gesicht – bewusst genießen;heavy
+NS;5;ns_5_01;NS-Dusche Haare + Gesicht – Alltagsroutine etabliert;heavy
+NS;5;ns_5_02;Gedanke an NS löst Erektion aus – Protokoll führen (7 Tage);heavy
+NS;5;ns_5_03;NS-Enema (kleine Menge) – Alltagsintegration;heavy
 ANALTunnel;1;ant_1_01;Kleiner Tunnel (Meo-schwarz) 60 Min;soft
 ANALTunnel;1;ant_1_02;Kleiner Tunnel (Meo-schwarz) 3h;pflicht
 ANALTunnel;1;ant_1_03;Kleiner Tunnel (Meo-schwarz) 6h;hard
