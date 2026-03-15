@@ -3,17 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
   <title>Glam Trainer</title>
-
   <meta name="theme-color" content="#0b0014" />
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
   <div class="bg"></div>
-
   <header class="topbar">
     <div class="brand">
       <div class="brand-icon" aria-hidden="true">🔱</div>
@@ -22,7 +18,6 @@
         <div class="brand-sub" id="todayLabel"></div>
       </div>
     </div>
-
     <div class="top-actions">
       <select id="dayMode" class="select">
         <option value="aussetzen">Aussetzen</option>
@@ -33,22 +28,18 @@
       <button class="btn secondary" id="btnSync" type="button" title="CSV neu laden">⟳</button>
     </div>
   </header>
-
   <main class="wrap">
     <section id="view"></section>
   </main>
-
   <nav class="bottomnav">
     <button class="navbtn" data-route="#/nav">Start</button>
-    <button class="navbtn" data-route="#/home">Trainer</button>
+    <button class="navbtn" data-route="#/home">Sub</button>
     <button class="navbtn" data-route="#/goals">Ziele</button>
     <button class="navbtn" data-route="#/tasks">Aufgaben</button>
     <button class="navbtn" data-route="#/log">Log</button>
     <button class="navbtn" data-route="#/settings">Einstellungen</button>
   </nav>
-
   <div class="toast" id="toast" aria-live="polite"></div>
-
   <script src="app.js"></script>
 </body>
 </html>
