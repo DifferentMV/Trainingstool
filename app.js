@@ -379,7 +379,7 @@ async function loadGoalsFromCSV() {
 }
 
 function renderAnja() {
-  const btnBack=h("button",{class:"btn secondary",type:"button",onclick:()=>{location.hash="#/nav";}},"Zur Startauswahl");
+  const btnBack=h("button",{class:"btn secondary",type:"button",onclick:()=>{location.hash="#/nav";}},["Zur Startauswahl"]);
   const iframe=h("iframe",{src:"control_panel.html",style:"width:100%;height:600px;min-height:400px;border:0;border-radius:16px;background:transparent;",loading:"lazy",scrolling:"yes"});
   const zieleCard=h("div",{class:"card"},[sectionTitle("🎯","Aktive Ziele",null),h("div",{class:"small",id:"anjaGoalsList"},["Lade Ziele..."])]);
   loadGoalsFromCSV().then(({goals,steps})=>{
@@ -482,7 +482,7 @@ function getWunschItems() {
 }
 
 function renderCuckold() {
-  const btnBack=h("button",{class:"btn secondary",type:"button",onclick:()=>{location.hash="#/nav";}},"Zurueck");
+  const btnBack=h("button",{class:"btn secondary",type:"button",onclick:()=>{location.hash="#/nav";}},["Zurueck"]);
   const smileys=["","😔","😕","😐","🙂","😍"],cuck=state.cuckold||{};
   const gefuehlBtns=[1,2,3,4,5].map(n=>{
     const b=document.createElement("button");b.className="btn secondary";b.type="button";b.textContent=smileys[n];
