@@ -84,6 +84,22 @@ async function fbSetCuckold(data) {
   await fbSet("cuckold", { ...data, updatedAt: nowISO() });
 }
 
+async function fbGetCustomWishes() {
+  const data = await fbGet("custom_wishes");
+  if (!data) return [];
+  return Object.entries(data).map(([fbKey, w]) => ({ ...w, _fbKey: fbKey }));
+}
+
+async function fbAddCustomWish(titel) {
+  const fbKey = await fbPush("custom_wishes", { titel, createdAt: nowISO() });
+  return fbKey;
+}
+
+async function fbDeleteCustomWish(fbKey) {
+  const res = await fetch(`${FIREBASE_URL}/custom_wishes/${fbKey}.json`, { method: "DELETE" });
+  return res.ok;
+}
+
 // ═══════════════════════════════════════════════
 // LOKALER STORAGE (nur eigene Daten)
 // ═══════════════════════════════════════════════
@@ -228,6 +244,7 @@ const state = {
   filter:         "all",
   anjaTasks:      [],
   cuckold:        { gefuehl: null, wunsch: null },
+  customWishes:   [],
 };
 
 function persistSettings()  { saveJSON(STORAGE.settings, state.settings); }
@@ -1144,11 +1161,17 @@ function renderAnjaInbox() {
 // ── Cuckold View ───────────────────────────────
 
 function getWunschItems() {
-  return (state.tasksData || []).filter(r => {
-    const typ   = String(r.typ   || "").trim().toLowerCase();
+  // CSV-Wünsche
+  const csvWünsche = (state.tasksData || []).filter(r => {
+    const typ    = String(r.typ    || "").trim().toLowerCase();
     const wunsch = String(r.wunsch || "").trim().toUpperCase();
     return typ === "wunsch" || wunsch === "W";
-  }).map(r => String(r.titel || "").trim()).filter(Boolean);
+  }).map(r => ({ titel: String(r.titel || "").trim(), custom: false })).filter(x => x.titel);
+
+  // Firebase-Wünsche
+  const fbWünsche = (state.customWishes || []).map(w => ({ titel: String(w.titel || "").trim(), custom: true, _fbKey: w._fbKey })).filter(x => x.titel);
+
+  return [...csvWünsche, ...fbWünsche];
 }
 
 function renderCuckold() {
@@ -1181,33 +1204,73 @@ function renderCuckold() {
     h("div", { style: "display:flex;gap:10px;flex-wrap:wrap;" }, gefuehlBtns),
   ]);
 
-  // Wunsch-Auswahl
-  const wünsche = getWunschItems();
-  const wunschBtns = wünsche.map(w => {
-    const b = document.createElement("button");
-    b.className = "btn secondary";
-    b.type = "button";
-    b.textContent = w;
-    b.style.cssText = "min-height:48px;text-align:left;white-space:normal;line-height:1.3;";
-    if (cuck.wunsch === w) {
-      b.style.background = "rgba(164,107,138,.8)";
-      b.style.borderColor = "rgba(164,107,138,1)";
-      b.style.color = "#fff";
-    }
-    b.addEventListener("click", async () => {
-      state.cuckold = { ...state.cuckold, wunsch: cuck.wunsch === w ? null : w };
-      await fbSetCuckold(state.cuckold);
-      toast(state.cuckold.wunsch ? "Wunsch gesetzt." : "Wunsch entfernt."); render();
-    });
-    return b;
+  // Alle Wünsche zusammen
+  const alleWünsche = getWunschItems();
+
+  // Dropdown
+  const sel = document.createElement("select");
+  sel.className = "select";
+  sel.style.cssText = "width:100%;min-height:48px;font-size:15px;";
+  const optPlaceholder = document.createElement("option");
+  optPlaceholder.value = "";
+  optPlaceholder.textContent = "Wunsch auswählen…";
+  sel.appendChild(optPlaceholder);
+  alleWünsche.forEach(w => {
+    const opt = document.createElement("option");
+    opt.value = w.titel;
+    opt.textContent = (w.custom ? "✏ " : "") + w.titel;
+    if (cuck.wunsch === w.titel) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", async () => {
+    state.cuckold = { ...state.cuckold, wunsch: sel.value || null };
+    await fbSetCuckold(state.cuckold);
+    toast(sel.value ? "Wunsch gesetzt." : "Wunsch entfernt.");
+    render();
   });
 
-  const wunschSection = h("div", { style: "display:flex;flex-direction:column;gap:10px;" }, [
-    h("div", { class: "small" }, ["Mein Wunsch als Belohnung:"]),
-    wünsche.length
-      ? h("div", { style: "display:flex;flex-direction:column;gap:8px;" }, wunschBtns)
-      : h("div", { class: "small" }, ["Keine Wünsche in tasks.csv (Spalte typ=Wunsch oder wunsch=W)."]),
-  ]);
+  // Eigene Wünsche löschen
+  const customList = (state.customWishes || []).map(w => {
+    const row = h("div", { style: "display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line,#242838);" }, [
+      h("div", { style: "flex:1;font-size:14px;" }, [w.titel]),
+      h("button", { class: "btn secondary", type: "button",
+        style: "min-height:36px;padding:4px 10px;font-size:13px;color:#c25d6a;border-color:rgba(194,93,106,.4);",
+        onclick: async () => {
+          if (!w._fbKey) return;
+          await fbDeleteCustomWish(w._fbKey);
+          state.customWishes = state.customWishes.filter(x => x._fbKey !== w._fbKey);
+          if (state.cuckold.wunsch === w.titel) {
+            state.cuckold = { ...state.cuckold, wunsch: null };
+            await fbSetCuckold(state.cuckold);
+          }
+          toast("Wunsch gelöscht."); render();
+        }
+      }, ["🗑"]),
+    ]);
+    return row;
+  });
+
+  // Freifeld + Hinzufügen
+  const txtNew = h("input", { type: "text", class: "input", placeholder: "Neuen Wunsch eingeben…", style: "min-height:48px;font-size:15px;" });
+  const btnAdd = h("button", { class: "btn", type: "button", style: "min-height:48px;", onclick: async () => {
+    const val = txtNew.value.trim();
+    if (!val) { toast("Bitte Wunsch eingeben."); return; }
+    const fbKey = await fbAddCustomWish(val);
+    state.customWishes.push({ titel: val, _fbKey: fbKey, createdAt: nowISO() });
+    toast("Wunsch hinzugefügt."); render();
+  }}, ["+ Hinzufügen"]);
+
+  const wunschCard = h("div", { class: "card" }, [
+    h("div", { class: "small", style: "margin-bottom:8px;" }, ["Mein Wunsch als Belohnung:"]),
+    sel,
+    h("div", { class: "hr", style: "margin:14px 0;" }),
+    h("div", { class: "small", style: "margin-bottom:8px;" }, ["Eigenen Wunsch hinzufügen:"]),
+    h("div", { class: "row" }, [txtNew, btnAdd]),
+    customList.length ? h("div", { style: "margin-top:12px;" }, [
+      h("div", { class: "small", style: "margin-bottom:6px;" }, ["Eigene Wünsche:"]),
+      ...customList,
+    ]) : null,
+  ].filter(Boolean));
 
   const currentStatus = h("div", { class: "card", style: "text-align:center;" }, [
     h("div", { style: "font-size:56px;margin:8px 0;" }, [smileys[cuck.gefuehl] || "–"]),
@@ -1222,7 +1285,7 @@ function renderCuckold() {
     ]),
     currentStatus,
     h("div", { class: "card" }, [gefuehlRow]),
-    h("div", { class: "card" }, [wunschSection]),
+    wunschCard,
   ]);
 }
 
@@ -1436,13 +1499,15 @@ async function init() {
   setupControlPanelBridge();
   await registerServiceWorker();
 
-  // Firebase + CSV + Cuckold parallel laden
-  const [,, cuckData] = await Promise.all([
+  // Firebase + CSV + Cuckold + CustomWishes parallel laden
+  const [,, cuckData, customWishData] = await Promise.all([
     loadAllCSV().catch(console.warn),
     loadAnjaTasks(),
     fbGetCuckold().catch(() => ({})),
+    fbGetCustomWishes().catch(() => []),
   ]);
-  state.cuckold = cuckData || { gefuehl: null, wunsch: null };
+  state.cuckold      = cuckData      || { gefuehl: null, wunsch: null };
+  state.customWishes = customWishData || [];
 
   regenIfNeeded(true);
   setInterval(() => maybeDispatchPushes(), state.settings.tickSeconds * 1000);
@@ -1451,6 +1516,8 @@ async function init() {
     await loadAnjaTasks();
     const cd = await fbGetCuckold().catch(() => null);
     if (cd) state.cuckold = cd;
+    const cw = await fbGetCustomWishes().catch(() => null);
+    if (cw) state.customWishes = cw;
     if (state.route.startsWith("#/tasks") || state.route.startsWith("#/anja") || state.route.startsWith("#/cuckold")) render();
   }, 30000);
 
