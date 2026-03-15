@@ -1278,9 +1278,7 @@ function renderCuckold() {
     cuck.wunsch ? h("div", { style: "margin-top:10px;font-size:15px;font-weight:700;" }, [`Wunsch: ${cuck.wunsch}`]) : null,
   ].filter(Boolean));
 
-  return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
-    h("div", { class: "card" }, [
-      sectionTitle("🤍", "Cuckold", btnBack),
+  return h("div", { style: "display:flex;flex-direction:column;gap:12px;" }, [
       h("div", { class: "small" }, ["Dein Gefühl & Wunsch – sichtbar für Anja."]),
     ]),
     currentStatus,
@@ -1438,6 +1436,7 @@ function render() {
   const view = document.getElementById("view");
   if (!view) return;
   view.innerHTML = "";
+  view.style.paddingBottom = "80px";
   if      (state.route.startsWith("#/nav"))      view.appendChild(renderNav());
   else if (state.route.startsWith("#/anja"))     view.appendChild(renderAnja());
   else if (state.route.startsWith("#/cuckold"))  view.appendChild(renderCuckold());
