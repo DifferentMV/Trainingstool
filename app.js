@@ -75,6 +75,15 @@ async function fbSetAnjaTaskStatus(taskId, fbKey, status) {
   });
 }
 
+// ── Firebase: Cuckold-Status ──────────────────
+async function fbGetCuckold() {
+  return await fbGet("cuckold") || {};
+}
+
+async function fbSetCuckold(data) {
+  await fbSet("cuckold", { ...data, updatedAt: nowISO() });
+}
+
 // ═══════════════════════════════════════════════
 // LOKALER STORAGE (nur eigene Daten)
 // ═══════════════════════════════════════════════
@@ -217,7 +226,8 @@ const state = {
   goalOverrides:  loadJSON(STORAGE.goalOverrides, {}),
   route:          "#/nav",
   filter:         "all",
-  anjaTasks:      [], // wird von Firebase geladen
+  anjaTasks:      [],
+  cuckold:        { gefuehl: null, wunsch: null },
 };
 
 function persistSettings()  { saveJSON(STORAGE.settings, state.settings); }
@@ -751,8 +761,9 @@ function renderNav() {
       h("div", { class: "small" }, ["Wähle, welchen Bereich du öffnen willst."]),
       h("div", { class: "hr" }, []),
       h("div", { class: "grid2" }, [
-        moduleTile("🜂", "Sub",  "Ziele, Trainings, Log & Settings.", "Öffnen", () => { location.hash = "#/home"; }),
-        moduleTile("👑", "Dom", "Anjas Aufgaben/Kleidung/Kombination.", "Öffnen", () => { location.hash = "#/anja"; }),
+        moduleTile("🜂", "Sub",      "Ziele, Trainings, Log & Settings.", "Öffnen", () => { location.hash = "#/home"; }),
+        moduleTile("👑", "Dom",      "Anjas Aufgaben/Kleidung/Kombination.", "Öffnen", () => { location.hash = "#/anja"; }),
+        moduleTile("🤍", "Cuckold",  "Gefühl & Wunsch – für Anja.", "Öffnen", () => { location.hash = "#/cuckold"; }),
       ]),
     ]),
   ]);
@@ -760,36 +771,75 @@ function renderNav() {
 
 // ── Anja View ──────────────────────────────────
 
+async function loadGoalsFromCSV() {
+  try {
+    const [goalsTxt, stepsTxt] = await Promise.all([
+      fetchText("goals.csv").catch(() => ""),
+      fetchText("goal_uebungen.csv").catch(() => ""),
+    ]);
+    return {
+      goals: goalsTxt ? parseCSV(goalsTxt) : [],
+      steps: stepsTxt ? parseCSV(stepsTxt) : [],
+    };
+  } catch { return { goals: [], steps: [] }; }
+}
+
 function renderAnja() {
   const btnBack = h("button", { class: "btn secondary", type: "button", onclick: () => { location.hash = "#/nav"; } }, ["Zur Startauswahl"]);
 
+  // iframe – scrollt intern, kein overflow auf Außenseite
   const iframe = h("iframe", {
     src: "control_panel.html",
-    style: "width:100%;height:85vh;border:0;border-radius:16px;background:transparent;",
+    style: "width:100%;height:600px;min-height:400px;border:0;border-radius:16px;background:transparent;overflow:hidden;",
     loading: "lazy",
+    scrolling: "yes",
   });
 
-  // Aktive Ziele
-  const activeGoals = getGoalsNormalized().filter(g => g.aktiv);
-  const goalItems = activeGoals.map(g => {
-    const { period, done, min, max } = computeGoalQuota(g);
-    const freq = period === "TAG" ? `Heute: ${done}/${max||min}` : `Woche: ${done}/${max||min}`;
-    const ex = pickExerciseForGoal(g.ziel_id, g.aktuelle_stufe);
-    return h("div", { class: "item" }, [
-      h("div", { class: "badge goal" }, ["🎯"]),
-      h("div", { class: "item-main" }, [
-        h("div", { class: "item-title" }, [g.ziel_name]),
-        h("div", { class: "item-sub" }, [`Stufe ${g.aktuelle_stufe}/${g.max_stufe} · ${freq}${ex ? "\nAktuell: " + ex.titel : ""}`]),
-      ])
-    ]);
-  });
-
+  // Ziele direkt aus CSV laden (geräteübergreifend)
   const zieleCard = h("div", { class: "card" }, [
     sectionTitle("🎯", "Aktive Ziele", null),
-    activeGoals.length
-      ? h("div", { class: "list" }, goalItems)
-      : h("div", { class: "small" }, ["Keine aktiven Ziele."]),
+    h("div", { class: "small", id: "anjaGoalsList" }, ["Lade Ziele…"]),
   ]);
+
+  // Ziele async nachladen
+  loadGoalsFromCSV().then(({ goals, steps }) => {
+    const box = document.getElementById("anjaGoalsList");
+    if (!box) return;
+    const normalized = goals.map(raw => {
+      const ziel_id   = String(raw.ziel_id || "").trim().toUpperCase();
+      const ziel_name = String(raw.ziel_name || raw.name || "").trim() || ziel_id;
+      const aktiv     = ["true","ja","1"].includes(String(raw.aktiv || "").trim().toLowerCase());
+      const aktuelle_stufe = parseInt(raw.aktuelle_stufe || "1", 10) || 1;
+      const max_stufe      = parseInt(raw.max_stufe || "5", 10) || 5;
+      const ov = state.goalOverrides[ziel_id] || {};
+      return {
+        ziel_id, ziel_name,
+        aktiv: typeof ov.aktiv === "boolean" ? ov.aktiv : aktiv,
+        aktuelle_stufe: typeof ov.aktuelle_stufe === "number" ? ov.aktuelle_stufe : aktuelle_stufe,
+        max_stufe,
+      };
+    }).filter(g => g.ziel_id && g.aktiv);
+
+    if (!normalized.length) { box.textContent = "Keine aktiven Ziele."; return; }
+    box.textContent = "";
+    box.className = "list";
+    normalized.forEach(g => {
+      const ex = steps.map(r => ({
+        ziel_id: String(r.ziel_id || "").trim().toUpperCase(),
+        stufe: parseInt(r.stufe || "1", 10) || 1,
+        titel: String(r.titel || r.uebung || "").trim(),
+      })).filter(x => x.ziel_id === g.ziel_id && x.stufe === g.aktuelle_stufe && x.titel);
+      const übung = ex.length ? ex[Math.floor(Math.random() * ex.length)].titel : "";
+      const item = h("div", { class: "item" }, [
+        h("div", { class: "badge goal" }, ["🎯"]),
+        h("div", { class: "item-main" }, [
+          h("div", { class: "item-title" }, [g.ziel_name]),
+          h("div", { class: "item-sub" }, [`Stufe ${g.aktuelle_stufe}/${g.max_stufe}${übung ? "\nAktuell: " + übung : ""}`]),
+        ])
+      ]);
+      box.appendChild(item);
+    });
+  });
 
   // Offene Aufgaben
   const openTasks = state.anjaTasks.filter(t => t.status === "offen" || t.status === "angenommen");
@@ -810,11 +860,22 @@ function renderAnja() {
       : h("div", { class: "small" }, ["Keine offenen Aufgaben."]),
   ]);
 
+  // Cuckold-Status für Anja
+  const smileys = ["", "😔", "😕", "😐", "🙂", "😍"];
+  const cuck = state.cuckold || {};
+  const cuckCard = cuck.gefuehl ? h("div", { class: "card" }, [
+    sectionTitle("🤍", "Cuckold", null),
+    h("div", { style: "font-size:48px;text-align:center;margin:8px 0;" }, [smileys[cuck.gefuehl] || ""]),
+    h("div", { class: "small", style: "text-align:center;" }, [`Gefühl: ${cuck.gefuehl}/5`]),
+    cuck.wunsch ? h("div", { style: "margin-top:12px;font-size:15px;font-weight:700;" }, [`Wunsch: ${cuck.wunsch}`]) : null,
+  ].filter(Boolean)) : null;
+
   return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
     h("div", { class: "card" }, [
       sectionTitle("👑", "Dom", btnBack),
       h("div", { class: "small" }, ["Ziele & Aufgaben – geräteübergreifend via Firebase."]),
     ]),
+    cuckCard,
     zieleCard,
     aufgabenCard,
     h("div", { class: "card" }, [
@@ -822,8 +883,12 @@ function renderAnja() {
       h("div", { class: "hr" }, []),
       iframe,
     ]),
-  ]);
+  ].filter(Boolean));
 }
+
+
+
+// ── Home ───────────────────────────────────────
 
 function renderHome() {
   regenIfNeeded(false);
@@ -968,7 +1033,6 @@ function renderAnjaInbox() {
       await setAnjaTaskStatus(t.id, "angenommen"); toast("Aufgabe angenommen."); render();
     }}, ["Annehmen"]);
 
-    // ── Erledigt-Formular ──
     const schwRow  = ratingRow("Schwierigkeit (1=leicht, 5=schwer)");
     const gerneRow = ratingRow("Wie gerne? (1=widerwillig, 5=sehr gerne)");
     const txtNote  = h("textarea", { class: "textarea", placeholder: "Anmerkung (optional)…", style: "min-height:56px;font-size:14px;" }, []);
@@ -993,7 +1057,6 @@ function renderAnjaInbox() {
       ])
     ]);
 
-    // ── Abgebrochen-Formular ──
     const txtAbort = h("textarea", { class: "textarea", placeholder: "Grund (Pflicht)…", style: "min-height:56px;font-size:14px;" }, []);
     const abortForm = h("div", { style: "display:none;flex-direction:column;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line, #242838);" }, [
       h("div", { class: "small" }, ["Warum abgebrochen?"]),
@@ -1048,7 +1111,6 @@ function renderAnjaInbox() {
     const isErledigt = t.status === "erledigt";
     const meta = [
       t.doneAt    ? `Erledigt: ${fmtDateTimeLocal(t.doneAt)}` : "",
-      t.updatedAt && !t.doneAt ? `Aktualisiert: ${fmtDateTimeLocal(t.updatedAt)}` : "",
       t.schwierigkeit ? `Schwierigkeit: ${t.schwierigkeit}/5` : "",
       t.gerne         ? `Gerne: ${t.gerne}/5` : "",
       t.rueckmeldung  ? `Notiz: ${t.rueckmeldung}` : "",
@@ -1079,8 +1141,96 @@ function renderAnjaInbox() {
   ].filter(Boolean));
 }
 
+// ── Cuckold View ───────────────────────────────
+
+function getWunschItems() {
+  return (state.tasksData || []).filter(r => {
+    const typ   = String(r.typ   || "").trim().toLowerCase();
+    const wunsch = String(r.wunsch || "").trim().toUpperCase();
+    return typ === "wunsch" || wunsch === "W";
+  }).map(r => String(r.titel || "").trim()).filter(Boolean);
+}
+
+function renderCuckold() {
+  const btnBack = h("button", { class: "btn secondary", type: "button", onclick: () => { location.hash = "#/nav"; } }, ["Zurück"]);
+  const smileys = ["", "😔", "😕", "😐", "🙂", "😍"];
+  const cuck = state.cuckold || {};
+
+  // Gefühl-Buttons
+  const gefuehlBtns = [1,2,3,4,5].map(n => {
+    const b = document.createElement("button");
+    b.className = "btn secondary";
+    b.type = "button";
+    b.textContent = smileys[n];
+    b.style.cssText = "font-size:32px;min-width:56px;min-height:56px;border-radius:14px;";
+    if (cuck.gefuehl === n) {
+      b.style.background = "rgba(164,107,138,.8)";
+      b.style.borderColor = "rgba(164,107,138,1)";
+      b.style.transform = "scale(1.15)";
+    }
+    b.addEventListener("click", async () => {
+      state.cuckold = { ...state.cuckold, gefuehl: n };
+      await fbSetCuckold(state.cuckold);
+      toast("Gefühl gespeichert."); render();
+    });
+    return b;
+  });
+
+  const gefuehlRow = h("div", { style: "display:flex;flex-direction:column;gap:10px;" }, [
+    h("div", { class: "small" }, ["Wie geht es dir gerade? (1=schlecht, 5=gut)"]),
+    h("div", { style: "display:flex;gap:10px;flex-wrap:wrap;" }, gefuehlBtns),
+  ]);
+
+  // Wunsch-Auswahl
+  const wünsche = getWunschItems();
+  const wunschBtns = wünsche.map(w => {
+    const b = document.createElement("button");
+    b.className = "btn secondary";
+    b.type = "button";
+    b.textContent = w;
+    b.style.cssText = "min-height:48px;text-align:left;white-space:normal;line-height:1.3;";
+    if (cuck.wunsch === w) {
+      b.style.background = "rgba(164,107,138,.8)";
+      b.style.borderColor = "rgba(164,107,138,1)";
+      b.style.color = "#fff";
+    }
+    b.addEventListener("click", async () => {
+      state.cuckold = { ...state.cuckold, wunsch: cuck.wunsch === w ? null : w };
+      await fbSetCuckold(state.cuckold);
+      toast(state.cuckold.wunsch ? "Wunsch gesetzt." : "Wunsch entfernt."); render();
+    });
+    return b;
+  });
+
+  const wunschSection = h("div", { style: "display:flex;flex-direction:column;gap:10px;" }, [
+    h("div", { class: "small" }, ["Mein Wunsch als Belohnung:"]),
+    wünsche.length
+      ? h("div", { style: "display:flex;flex-direction:column;gap:8px;" }, wunschBtns)
+      : h("div", { class: "small" }, ["Keine Wünsche in tasks.csv (Spalte typ=Wunsch oder wunsch=W)."]),
+  ]);
+
+  const currentStatus = h("div", { class: "card", style: "text-align:center;" }, [
+    h("div", { style: "font-size:56px;margin:8px 0;" }, [smileys[cuck.gefuehl] || "–"]),
+    cuck.gefuehl ? h("div", { class: "small" }, [`Gefühl: ${cuck.gefuehl}/5`]) : h("div", { class: "small" }, ["Noch kein Gefühl eingetragen."]),
+    cuck.wunsch ? h("div", { style: "margin-top:10px;font-size:15px;font-weight:700;" }, [`Wunsch: ${cuck.wunsch}`]) : null,
+  ].filter(Boolean));
+
+  return h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
+    h("div", { class: "card" }, [
+      sectionTitle("🤍", "Cuckold", btnBack),
+      h("div", { class: "small" }, ["Dein Gefühl & Wunsch – sichtbar für Anja."]),
+    ]),
+    currentStatus,
+    h("div", { class: "card" }, [gefuehlRow]),
+    h("div", { class: "card" }, [wunschSection]),
+  ]);
+}
+
 function renderTasks() {
-  const rubriken = [...new Set((state.tasksData || []).map(r => (r.rubrik || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"));
+  const rubriken = [...new Set((state.tasksData || [])
+    .filter(r => String(r.typ || "Aufgabe").trim().toLowerCase() !== "wunsch")
+    .map(r => (r.rubrik || "").trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "de"));
   const rubSel  = h("select", { class: "select", id: "rubSel" },  [h("option", { value: "" }, ["Rubrik wählen"]), ...rubriken.map(r => h("option", { value: r }, [r]))]);
   const taskSel = h("select", { class: "select", id: "taskSel", disabled: "true" }, [h("option", { value: "" }, ["Aufgabe wählen"])]);
   const out     = h("div", { id: "taskOut", style: "white-space:pre-line; font-weight:800; margin-top:10px" }, [""]);
@@ -1088,10 +1238,13 @@ function renderTasks() {
   const btnPush   = h("button", { class: "btn secondary", type: "button" }, ["Push senden (Aufgabe)"]);
 
   function getItemsForRubrik(rub) {
-    return (state.tasksData || []).map(r => ({ rubrik: (r.rubrik||"").trim(), titel: (r.titel||"").trim(), klasse: (r.klasse||"").trim() })).filter(x => x.rubrik === rub && x.titel);
+    return (state.tasksData || [])
+      .filter(r => String(r.typ || "Aufgabe").trim().toLowerCase() !== "wunsch")
+      .map(r => ({ rubrik: (r.rubrik||"").trim(), titel: (r.titel||"").trim(), klasse: (r.klasse||"").trim() }))
+      .filter(x => x.rubrik === rub && x.titel);
   }
   function setOutFromItem(it) {
-    out.textContent = `🧩 Aufgabe\nRubrik: ${it.rubrik}\n\n${it.titel}${it.klasse ? "\n\nKlasse: " + it.klasse : ""}`;
+    out.textContent = `🧩 Aufgabe\nRubrik: ${it.rubrik}\n\n${it.titel}`;
     out.dataset.payload = JSON.stringify(it);
   }
   function rebuildTaskSelect() {
@@ -1100,7 +1253,7 @@ function renderTasks() {
     taskSel.appendChild(h("option", { value: "" }, ["Aufgabe wählen"]));
     if (!rub) { taskSel.disabled = true; return; }
     const items = getItemsForRubrik(rub);
-    items.forEach((it, idx) => taskSel.appendChild(h("option", { value: String(idx) }, [`${it.titel}${it.klasse ? " [" + it.klasse + "]" : ""}`])));
+    items.forEach((it, idx) => taskSel.appendChild(h("option", { value: String(idx) }, [it.titel])));
     taskSel.disabled = !items.length;
   }
   rubSel.onchange  = () => { rebuildTaskSelect(); out.textContent = ""; delete out.dataset.payload; };
@@ -1216,14 +1369,15 @@ function renderSettings() {
 // ── Render ─────────────────────────────────────
 
 function render() {
-  const dm = $("dayMode");
+  const dm = document.getElementById("dayMode");
   if (dm) dm.value = state.settings.dayMode;
   setActiveNav(state.route);
-  const view = $("view");
+  const view = document.getElementById("view");
   if (!view) return;
   view.innerHTML = "";
   if      (state.route.startsWith("#/nav"))      view.appendChild(renderNav());
   else if (state.route.startsWith("#/anja"))     view.appendChild(renderAnja());
+  else if (state.route.startsWith("#/cuckold"))  view.appendChild(renderCuckold());
   else if (state.route.startsWith("#/home"))     view.appendChild(renderHome());
   else if (state.route.startsWith("#/goals"))    view.appendChild(renderGoals());
   else if (state.route.startsWith("#/tasks"))    view.appendChild(renderTasks());
@@ -1247,12 +1401,10 @@ async function registerServiceWorker() {
   }
 }
 
-// Nachrichten vom control_panel iframe empfangen
 function setupControlPanelBridge() {
   window.addEventListener("message", async (ev) => {
     const msg = ev?.data;
     if (!msg || typeof msg !== "object") return;
-    // control_panel speichert bereits direkt in Firebase – hier nur UI aktualisieren
     if (msg.type === "GT_NEW_TASK") {
       await loadAnjaTasks();
       toast("Neue Aufgabe von Anja.");
@@ -1266,13 +1418,13 @@ function setupControlPanelBridge() {
 }
 
 async function init() {
-  const label = $("todayLabel");
+  const label = document.getElementById("todayLabel");
   if (label) label.textContent = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
 
-  const dm = $("dayMode");
+  const dm = document.getElementById("dayMode");
   if (dm) dm.addEventListener("change", (e) => setDayMode(e.target.value));
 
-  const btnSync = $("btnSync");
+  const btnSync = document.getElementById("btnSync");
   if (btnSync) btnSync.addEventListener("click", async () => {
     try { await loadAllCSV(); toast("CSV geladen."); regenIfNeeded(true); render(); }
     catch (e) { console.warn(e); toast("CSV Fehler."); }
@@ -1284,16 +1436,22 @@ async function init() {
   setupControlPanelBridge();
   await registerServiceWorker();
 
-  // Firebase + CSV parallel laden
-  await Promise.all([loadAllCSV().catch(console.warn), loadAnjaTasks()]);
+  // Firebase + CSV + Cuckold parallel laden
+  const [,, cuckData] = await Promise.all([
+    loadAllCSV().catch(console.warn),
+    loadAnjaTasks(),
+    fbGetCuckold().catch(() => ({})),
+  ]);
+  state.cuckold = cuckData || { gefuehl: null, wunsch: null };
 
   regenIfNeeded(true);
   setInterval(() => maybeDispatchPushes(), state.settings.tickSeconds * 1000);
 
-  // Anja-Tasks alle 30 Sekunden automatisch aktualisieren
   setInterval(async () => {
     await loadAnjaTasks();
-    if (state.route.startsWith("#/tasks") || state.route.startsWith("#/anja")) render();
+    const cd = await fbGetCuckold().catch(() => null);
+    if (cd) state.cuckold = cd;
+    if (state.route.startsWith("#/tasks") || state.route.startsWith("#/anja") || state.route.startsWith("#/cuckold")) render();
   }, 30000);
 
   if (!location.hash) location.hash = "#/nav";
