@@ -232,7 +232,17 @@ function ratingRow(label) {
   const btns=[1,2,3,4,5].map(n=>{const b=document.createElement("button");b.className="btn secondary";b.type="button";b.textContent=String(n);b.style.cssText="min-width:52px;min-height:52px;font-size:20px;font-weight:700;border-radius:12px;";return b;});
   const row=h("div",{style:"display:flex;flex-direction:column;gap:6px;margin-top:8px;"},[h("div",{class:"small"},[label]),h("div",{style:"display:flex;gap:10px;flex-wrap:wrap;"},btns)]);
   row.dataset.selected="";
-  btns.forEach((b,i)=>{b.addEventListener("click",()=>{btns.forEach(x=>{x.style.background="";x.style.borderColor="";x.style.color="";x.style.transform="";});b.style.background="rgba(164,107,138,.8)";b.style.borderColor="rgba(164,107,138,1)";b.style.color="#fff";b.style.transform="scale(1.15)";row.dataset.selected=String(i+1);});});
+  btns.forEach((b,i)=>{b.addEventListener("click",()=>{
+    btns.forEach(x=>{
+      x.style.background="";x.style.borderColor="";x.style.color="";x.style.transform="";x.style.fontWeight="";
+    });
+    b.style.background="rgba(164,107,138,.9)";
+    b.style.borderColor="rgba(164,107,138,1)";
+    b.style.color="#fff";
+    b.style.transform="scale(1.15)";
+    b.style.fontWeight="900";
+    row.dataset.selected=String(i+1);
+  });});
   return row;
 }
 
