@@ -711,7 +711,7 @@ async function init() {
     const cw=await fbGetCustomWishes().catch(()=>null); if(cw) state.customWishes=cw;
     const pl=await fbGetPisslog().catch(()=>null); if(pl) state.pisslog=pl;
     const r=state.route;
-    if(r.startsWith("#/sub/")||r.startsWith("#/dom/")) render();
+    if(r.startsWith("#/sub/")||( r.startsWith("#/dom/")&&r!="#/dom/aufgaben")) render();
   },30000);
   if(!location.hash||location.hash==="#/nav"||location.hash==="#/start") location.hash="#/start";
   onRoute();
