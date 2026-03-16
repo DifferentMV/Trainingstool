@@ -303,14 +303,47 @@ function renderStart() {
 // ════════════════════════════════════════════════
 function renderSubHome() {
   regenIfNeeded(false);
-  const schedule=getSchedule(),units=schedule?.units||[],now=new Date();
-  const due=units.filter(u=>u.status==="geplant"&&u.plannedAt&&new Date(u.plannedAt)<=now);
-  const planned=units.filter(u=>u.status==="geplant"&&u.plannedAt&&new Date(u.plannedAt)>now);
+  const schedule=getSchedule(),units=schedule?.units||[],now=new Date(),todayStart=new Date();todayStart.setHours(0,0,0,0);const todayEnd=new Date(todayStart);todayEnd.setDate(todayEnd.getDate()+1);
+
+  // Ziel-Einheiten
+  const dueGoals=units.filter(u=>u.status==="geplant"&&u.plannedAt&&new Date(u.plannedAt)<=now);
+  const plannedGoals=units.filter(u=>u.status==="geplant"&&u.plannedAt&&new Date(u.plannedAt)>now);
+
+  // Anja-Tasks
+  const anjaDue=state.anjaTasks.filter(t=>{
+    if(t.status!=="offen"&&t.status!=="angenommen") return false;
+    if(!t.dueAt) return t.status==="angenommen"; // kein Datum + angenommen = sofort fällig
+    return new Date(t.dueAt)<=now;
+  });
+  const anjaPlanned=state.anjaTasks.filter(t=>{
+    if(t.status!=="offen"&&t.status!=="angenommen") return false;
+    if(!t.dueAt) return t.status==="offen"; // kein Datum + offen = heute geplant (wartet auf Annahme)
+    const due=new Date(t.dueAt);
+    return due>now&&due<todayEnd;
+  });
+
+  function anjaCard(t) {
+    return h("div",{class:"item"},[
+      h("div",{class:"badge task"},["👑"]),
+      h("div",{class:"item-main"},[
+        h("div",{class:"item-title"},[t.title||"Aufgabe"]),
+        h("div",{class:"item-sub"},[`Status: ${t.status}`+(t.dueAt?` · Fällig: ${fmtDateTimeLocal(t.dueAt)}`:"")]),
+        h("div",{class:"row",style:"margin-top:8px;"},[
+          h("button",{class:"btn secondary",type:"button",onclick:()=>{location.hash="#/sub/tasks";}},["Zu Aufgaben →"]),
+        ]),
+      ]),
+    ]);
+  }
+
   const filtered=(arr)=>{if(state.subFilter==="goals")return arr.filter(x=>x.typ==="ziel");if(state.subFilter==="tasks")return arr.filter(x=>x.typ==="aufgabe");return arr;};
   const chips=h("div",{class:"chips"},[chip("Alle",state.subFilter==="all",()=>{state.subFilter="all";render();}),chip("🎯 Ziele",state.subFilter==="goals",()=>{state.subFilter="goals";render();}),chip("🧩 Aufgaben",state.subFilter==="tasks",()=>{state.subFilter="tasks";render();})]);
+
+  const allDue=[...filtered(dueGoals).map(listItemCard),...(state.subFilter==="goals"?[]:anjaDue.map(anjaCard))];
+  const allPlanned=[...filtered(plannedGoals).map(listItemCard),...(state.subFilter==="goals"?[]:anjaPlanned.map(anjaCard))];
+
   return h("div",{style:"display:flex;flex-direction:column;gap:12px"},[
-    h("div",{class:"card"},[sectionTitle("🔔","Jetzt faellig",chips),filtered(due).length?h("div",{class:"list"},filtered(due).map(listItemCard)):h("div",{class:"small"},["Keine Einheiten faellig."])]),
-    h("div",{class:"card"},[sectionTitle("📅","Heute geplant",null),filtered(planned).length?h("div",{class:"list"},filtered(planned).map(listItemCard)):h("div",{class:"small"},["Heute ist nichts weiter geplant."])]),
+    h("div",{class:"card"},[sectionTitle("🔔","Jetzt faellig",chips),allDue.length?h("div",{class:"list"},allDue):h("div",{class:"small"},["Keine Einheiten faellig."])]),
+    h("div",{class:"card"},[sectionTitle("📅","Heute geplant",null),allPlanned.length?h("div",{class:"list"},allPlanned):h("div",{class:"small"},["Heute ist nichts weiter geplant."])]),
   ]);
 }
 
