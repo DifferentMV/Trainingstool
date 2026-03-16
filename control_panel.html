@@ -4,731 +4,344 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Control Panel</title>
-  <meta name="theme-color" content="#0b0c10" />
+  <meta name="theme-color" content="#0b0014" />
   <style>
     :root{
-      --bg:#0b0c10; --text:#f2f3f5; --muted:#b9bcc6; --line:#242838;
-      --accent:#a46b8a; --btn:#171a24; --btn2:#1c2030; --r:18px;
+      --bg:#0b0014; --text:#f2f3f5; --muted:#b9bcc6; --line:#242838;
+      --accent:#a46b8a; --btn:#12001f; --btn2:#1a0029; --r:18px;
     }
     *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;background:
-      radial-gradient(1000px 600px at 50% 10%, rgba(164,107,138,.18), transparent 60%),
-      radial-gradient(900px 600px at 50% 120%, rgba(107,138,164,.10), transparent 60%),
-      var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .wrap{max-width:860px;margin:0 auto;padding:28px 18px 42px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
-    h1{font-size:20px;margin:0;font-weight:600}
-    .sub{color:var(--muted);font-size:13px;margin-top:2px}
-    .ghost{background:transparent;border:1px solid var(--line);color:var(--muted);
-      padding:10px 12px;border-radius:14px;cursor:pointer}
-    .ghost:hover{border-color:#323754;color:var(--text)}
-    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
-      border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
-    .title{font-size:14px;color:var(--muted);margin-bottom:8px}
-    .sep{height:1px;background:var(--line);margin:10px 0}
-    .pillgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
-    .pill{background:var(--btn);border:1px solid var(--line);border-radius:16px;padding:14px;cursor:pointer;text-align:left;transition:.12s}
-    .pill:hover{transform:translateY(-1px);border-color:#343a55;background:var(--btn2)}
-    .pill.active{border-color:rgba(164,107,138,.8);box-shadow:0 0 0 3px rgba(164,107,138,.15)}
-    .pill .k{font-size:14px;font-weight:600}
+    body{
+      margin:0;min-height:100vh;
+      background:
+        radial-gradient(1000px 600px at 50% 10%, rgba(164,107,138,.18), transparent 60%),
+        radial-gradient(900px 600px at 50% 120%, rgba(107,100,164,.10), transparent 60%),
+        var(--bg);
+      color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    }
+    .wrap{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+    h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.04em}
+    .sub{color:var(--muted);font-size:12px;margin-top:2px}
+    .ghost{
+      background:transparent;border:1px solid var(--line);color:var(--muted);
+      padding:8px 12px;border-radius:14px;cursor:pointer;font-size:13px;
+    }
+    .ghost:hover{border-color:#443060;color:var(--text)}
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+      border:1px solid var(--line);border-radius:var(--r);padding:18px;
+      box-shadow:0 10px 40px rgba(0,0,0,.35);
+    }
+    .title{font-size:13px;color:var(--muted);margin-bottom:10px;letter-spacing:.05em;text-transform:uppercase}
+    .sep{height:1px;background:var(--line);margin:14px 0}
+    .pillgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+    .pill{
+      background:var(--btn);border:1px solid var(--line);border-radius:16px;
+      padding:14px;cursor:pointer;text-align:left;transition:.12s;
+    }
+    .pill:hover{transform:translateY(-1px);border-color:#443060;background:var(--btn2)}
+    .pill.active{border-color:rgba(164,107,138,.8);box-shadow:0 0 0 3px rgba(164,107,138,.15);background:var(--btn2)}
+    .pill .k{font-size:14px;font-weight:700}
     .pill .h{font-size:12px;color:var(--muted);margin-top:3px}
     .stack{display:flex;flex-direction:column;gap:12px}
     .row{display:flex;gap:10px;flex-wrap:wrap}
-    input[type=text], input[type=datetime-local], textarea{
-      width:100%;background:#0f1117;border:1px solid var(--line);color:var(--text);
-      padding:12px;border-radius:14px;outline:none
+    input[type=text],input[type=datetime-local],textarea{
+      width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line);
+      color:var(--text);padding:12px;border-radius:14px;outline:none;font-size:14px;
     }
-    textarea{min-height:90px;resize:vertical}
-    .btn{background:linear-gradient(180deg,rgba(164,107,138,.25),rgba(164,107,138,.10));
-      border:1px solid rgba(164,107,138,.55);color:var(--text);padding:12px 14px;border-radius:14px;cursor:pointer;font-weight:600}
+    input[type=text]:focus,input[type=datetime-local]:focus,textarea:focus{
+      border-color:rgba(164,107,138,.6);
+    }
+    textarea{min-height:80px;resize:vertical}
+    .btn{
+      background:linear-gradient(180deg,rgba(164,107,138,.3),rgba(164,107,138,.12));
+      border:1px solid rgba(164,107,138,.6);color:var(--text);
+      padding:12px 16px;border-radius:14px;cursor:pointer;font-weight:700;font-size:14px;
+      transition:.12s;
+    }
+    .btn:hover{background:linear-gradient(180deg,rgba(164,107,138,.45),rgba(164,107,138,.2));}
     .btn.secondary{background:var(--btn);border:1px solid var(--line)}
-    .btn.secondary:hover{border-color:#343a55}
+    .btn.secondary:hover{border-color:#443060;background:var(--btn2)}
     .small{font-size:12px;color:var(--muted)}
-    .result{background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:var(--r);padding:16px}
-    .result h2{font-size:13px;color:var(--muted);letter-spacing:.12em;margin:0 0 10px}
-    .main{white-space:pre-line;font-size:16px;margin-bottom:10px}
-    .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:14px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.10)}
-    .k{color:var(--muted)}
-    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(17,19,26,.92);
-      border:1px solid var(--line);padding:10px 12px;border-radius:14px;font-size:13px;display:none}
-    .error{display:none;border:1px solid rgba(194,93,106,.55);background:rgba(194,93,106,.08);padding:10px 12px;border-radius:14px}
-    .taskline{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(0,0,0,.12)}
-    .syncbadge{font-size:11px;color:var(--muted);margin-left:8px}
+    .result{
+      background:rgba(164,107,138,.06);border:1px solid rgba(164,107,138,.25);
+      border-radius:var(--r);padding:16px;
+    }
+    .result h2{font-size:12px;color:var(--muted);letter-spacing:.12em;margin:0 0 10px;text-transform:uppercase}
+    .main{white-space:pre-line;font-size:16px;font-weight:700;margin-bottom:10px}
+    .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:14px;padding-top:10px;border-top:1px dashed rgba(255,255,255,.08)}
+    .kl{color:var(--muted)}
+    .toast{
+      position:fixed;left:50%;transform:translateX(-50%);bottom:18px;
+      background:rgba(17,0,30,.95);border:1px solid var(--line);
+      padding:10px 14px;border-radius:14px;font-size:13px;display:none;z-index:999;
+    }
+    .error{
+      display:none;border:1px solid rgba(194,93,106,.55);
+      background:rgba(194,93,106,.08);padding:10px 12px;border-radius:14px;font-size:13px;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>Control Panel</h1>
-        <div class="sub">Sehr intim · weich präsent · minimal</div>
-      </div>
-      <button class="ghost" id="btnReload" type="button">Daten neu laden</button>
-    </header>
-
-    <div class="card stack">
-
-      <!-- MODE (Aufgabe erstellen – jetzt oben) -->
-      <div class="stack" id="stepMode">
-        <div class="title">Was möchtest du festlegen?</div>
-        <div class="pillgrid" id="modeGrid"></div>
-      </div>
-
-      <div class="sep"></div>
-
-      <div class="stack" id="stepBereich" style="display:none;">
-        <div class="title">Bereich wählen</div>
-        <div class="pillgrid" id="bereichGrid"></div>
-      </div>
-
-      <div class="sep" id="sep2" style="display:none;"></div>
-
-      <div class="stack" id="stepItem" style="display:none;">
-        <div class="title">Auswahl</div>
-        <div class="pillgrid" id="itemGrid"></div>
-      </div>
-
-      <div class="sep" id="sep3" style="display:none;"></div>
-
-      <!-- PARAMS -->
-      <div class="stack" id="stepParams" style="display:none;">
-        <div class="title">Rahmen festlegen</div>
-
-        <div class="stack">
-          <div class="small">Fällig am (optional):</div>
-          <input type="datetime-local" id="inpDue" />
-          <div class="small">Wenn gesetzt: sichtbar sofort, ausführbar erst ab Zeitpunkt.</div>
-        </div>
-
-        <div class="stack">
-          <div class="small">Bemerkung (optional):</div>
-          <textarea id="inpNote" placeholder="z.B. Stimmung, Schwerpunkt, was wichtig ist …"></textarea>
-        </div>
-
-        <div class="stack">
-          <div class="small">Eigene Aufgabe (optional – überschreibt Auswahl):</div>
-          <input type="text" id="inpCustom" placeholder="Freitext-Aufgabe hier eingeben…" />
-        </div>
-
-        <div class="stack" id="dauerBlock">
-          <div class="small">Dauer (frei):</div>
-          <input type="text" id="inpDauer" placeholder="z.B. 20Min, 2×, heute Abend, 1h" />
-        </div>
-
-        <div class="stack" id="orgBlock" style="margin-top:6px;">
-          <div class="small">Orgasmus:</div>
-          <div class="row">
-            <button class="btn secondary" id="orgNo" type="button">Nicht gestattet</button>
-            <button class="btn secondary" id="orgYes" type="button">Gestattet</button>
-          </div>
-          <div id="orgSub" style="display:none; margin-top:8px;">
-            <div class="small">Wenn gestattet, dann:</div>
-            <div class="row" style="margin-top:6px;">
-              <button class="btn secondary" type="button" data-orgsub="Mit Bildnachweis">Mit Bildnachweis</button>
-              <button class="btn secondary" type="button" data-orgsub="Ohne wegwischen">Ohne wegwischen</button>
-              <button class="btn secondary" type="button" data-orgsub="Mit Aufnahme">Mit Aufnahme</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="stack" id="pushBlock" style="margin-top:6px;">
-          <div class="small">Push ans Handy (ntfy):</div>
-          <input type="text" id="pushTopic" placeholder="my-secret-task-topic-4711" autocomplete="off" />
-          <input type="text" id="pushToken" placeholder="Optional: ntfy Access Token" autocomplete="off" />
-          <label class="small"><input type="checkbox" id="pushOnBuild" /> Bei „Aufgabe erstellen" automatisch Push senden</label>
-          <button class="btn secondary" id="btnPushTest" type="button">Push testen</button>
-        </div>
-
-        <div class="row" style="margin-top:10px;">
-          <button class="btn" id="btnBuild" type="button">Aufgabe erstellen</button>
-          <button class="btn secondary" id="btnRandom" type="button">Zufallsaufgabe in Rubrik</button>
-          <button class="btn secondary" id="btnReset" type="button">Zurücksetzen</button>
-        </div>
-      </div>
-
-      <!-- RESULT -->
-      <div class="stack" id="stepResult" style="display:none;">
-        <div class="result">
-          <h2>DEINE AUFGABE</h2>
-          <div class="main" id="resultMain"></div>
-          <div class="kv" id="resultKV"></div>
-        </div>
-        <div class="row">
-          <button class="btn" id="btnCopy" type="button">Kopieren</button>
-          <button class="btn secondary" id="btnNew" type="button">Neue Auswahl</button>
-        </div>
-        <div class="small">Das Tool liefert Struktur. Die persönliche Ansprache kommt von dir.</div>
-      </div>
-
-      <div id="errBox" class="error"></div>
-
-      <!-- RÜCKMELDUNGEN (jetzt unten) -->
-      <div class="sep"></div>
-      <div class="stack">
-        <div class="title">Rückmeldungen <span class="syncbadge" id="syncBadge"></span></div>
-        <div id="taskStatus" class="stack" style="max-height:340px;overflow-y:auto;padding-right:4px;"></div>
-      </div>
-
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Aufgaben erstellen</h1>
+      <div class="sub">Aufgabe · Kleidung · Kombination</div>
     </div>
-  </div>
+    <button class="ghost" id="btnReload" type="button">Neu laden</button>
+  </header>
 
-  <div class="toast" id="toast">Kopiert.</div>
+  <div class="card stack">
+
+    <div class="stack" id="stepMode">
+      <div class="title">Was möchtest du festlegen?</div>
+      <div class="pillgrid" id="modeGrid"></div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="stack" id="stepBereich" style="display:none;">
+      <div class="title">Bereich wählen</div>
+      <div class="pillgrid" id="bereichGrid"></div>
+    </div>
+
+    <div class="sep" id="sep2" style="display:none;"></div>
+
+    <div class="stack" id="stepItem" style="display:none;">
+      <div class="title">Auswahl</div>
+      <div class="pillgrid" id="itemGrid"></div>
+    </div>
+
+    <div class="sep" id="sep3" style="display:none;"></div>
+
+    <div class="stack" id="stepParams" style="display:none;">
+      <div class="title">Rahmen festlegen</div>
+
+      <div class="stack">
+        <div class="small">Fällig am (optional):</div>
+        <input type="datetime-local" id="inpDue" />
+        <div class="small">Wenn gesetzt: sichtbar sofort, ausführbar erst ab Zeitpunkt.</div>
+      </div>
+
+      <div class="stack">
+        <div class="small">Bemerkung (optional):</div>
+        <textarea id="inpNote" placeholder="z.B. Stimmung, Schwerpunkt, was wichtig ist …"></textarea>
+      </div>
+
+      <div class="stack">
+        <div class="small">Eigene Aufgabe (optional – überschreibt Auswahl):</div>
+        <input type="text" id="inpCustom" placeholder="Freitext-Aufgabe hier eingeben…" />
+      </div>
+
+      <div class="stack" id="dauerBlock">
+        <div class="small">Dauer (frei):</div>
+        <input type="text" id="inpDauer" placeholder="z.B. 20Min, 2×, heute Abend, 1h" />
+      </div>
+
+      <div class="stack" id="orgBlock" style="margin-top:6px;">
+        <div class="small">Orgasmus:</div>
+        <div class="row">
+          <button class="btn secondary" id="orgNo" type="button">Nicht gestattet</button>
+          <button class="btn secondary" id="orgYes" type="button">Gestattet</button>
+        </div>
+        <div id="orgSub" style="display:none;margin-top:8px;">
+          <div class="small">Wenn gestattet, dann:</div>
+          <div class="row" style="margin-top:6px;">
+            <button class="btn secondary" type="button" data-orgsub="Mit Bildnachweis">Mit Bildnachweis</button>
+            <button class="btn secondary" type="button" data-orgsub="Ohne wegwischen">Ohne wegwischen</button>
+            <button class="btn secondary" type="button" data-orgsub="Mit Aufnahme">Mit Aufnahme</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack" id="pushBlock" style="margin-top:6px;">
+        <div class="small">Push ans Handy (ntfy):</div>
+        <input type="text" id="pushTopic" placeholder="my-secret-task-topic-4711" autocomplete="off" />
+        <input type="text" id="pushToken" placeholder="Optional: ntfy Access Token" autocomplete="off" />
+        <label class="small"><input type="checkbox" id="pushOnBuild" /> Bei „Aufgabe erstellen" automatisch Push senden</label>
+        <button class="btn secondary" id="btnPushTest" type="button">Push testen</button>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button class="btn" id="btnBuild" type="button">Aufgabe erstellen</button>
+        <button class="btn secondary" id="btnRandom" type="button">Zufallsaufgabe</button>
+        <button class="btn secondary" id="btnReset" type="button">Zurücksetzen</button>
+      </div>
+    </div>
+
+    <div class="stack" id="stepResult" style="display:none;">
+      <div class="result">
+        <h2>Aufgabe erstellt</h2>
+        <div class="main" id="resultMain"></div>
+        <div class="kv" id="resultKV"></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnCopy" type="button">Kopieren</button>
+        <button class="btn secondary" id="btnNew" type="button">Neue Auswahl</button>
+      </div>
+      <div class="small">Aufgabe wurde automatisch in Firebase gespeichert.</div>
+    </div>
+
+    <div id="errBox" class="error"></div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast">OK</div>
 
 <script>
-// ═══════════════════════════════════════
-// FIREBASE KONFIGURATION
-// ═══════════════════════════════════════
 const FIREBASE_URL = "https://ds-trainingstool-default-rtdb.europe-west1.firebasedatabase.app";
 
-async function fbGet(path) {
-  const res = await fetch(`${FIREBASE_URL}/${path}.json`);
-  if (!res.ok) return null;
-  return await res.json();
-}
+async function fbGet(path) { const r=await fetch(`${FIREBASE_URL}/${path}.json`); if(!r.ok) return null; return await r.json(); }
+async function fbPush(path,value) { const r=await fetch(`${FIREBASE_URL}/${path}.json`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)}); if(!r.ok) return null; return (await r.json()).name; }
 
-async function fbPush(path, value) {
-  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(value),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.name;
-}
+let DATA=[], mode=null, bereich=null, selection=[], currentType=null, orgasmAllowed=null, orgasmRule="";
+const PUSH_KEY="controlPanelPushSettings";
+const $=id=>document.getElementById(id);
 
-async function fbPatch(path, patch) {
-  const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-  return res.ok;
-}
+function setError(msg){const b=$("errBox");if(!msg){b.style.display="none";b.textContent="";return;}b.style.display="block";b.textContent=msg;}
+function showToast(msg){const t=$("toast");t.textContent=msg||"OK";t.style.display="block";setTimeout(()=>t.style.display="none",1400);}
 
-async function fbGetAnjaTasks() {
-  const data = await fbGet("anja_tasks");
-  if (!data) return [];
-  return Object.entries(data).map(([fbKey, task]) => ({ ...task, _fbKey: fbKey }));
-}
+function getPushSettings(){return JSON.parse(localStorage.getItem(PUSH_KEY)||"{}");}
+function savePushSettings(){localStorage.setItem(PUSH_KEY,JSON.stringify({topic:$("pushTopic").value.trim(),token:$("pushToken").value.trim(),auto:$("pushOnBuild").checked}));}
+function restorePushSettings(){const s=getPushSettings();$("pushTopic").value=s.topic||"my-secret-task-topic-4711";if(s.token)$("pushToken").value=s.token;$("pushOnBuild").checked=!!s.auto;}
 
-async function fbSaveAnjaTask(task) {
-  const { _fbKey, ...clean } = task;
-  const fbKey = await fbPush("anja_tasks", clean);
-  return fbKey;
-}
-
-async function fbDeleteAnjaTask(fbKey) {
-  const res = await fetch(`${FIREBASE_URL}/anja_tasks/${fbKey}.json`, { method: "DELETE" });
-  return res.ok;
-}
-
-// ═══════════════════════════════════════
-// APP STATE
-// ═══════════════════════════════════════
-let DATA = [], mode = null, bereich = null, selection = [], currentType = null;
-let orgasmAllowed = null, orgasmRule = "";
-let anjaTasks = []; // aus Firebase
-
-const PUSH_SETTINGS_KEY = "controlPanelPushSettings";
-const $ = id => document.getElementById(id);
-
-function setError(msg) {
-  const b = $("errBox");
-  if (!msg) { b.style.display = "none"; b.textContent = ""; return; }
-  b.style.display = "block"; b.textContent = msg;
-}
-
-function showToast(msg) {
-  const t = $("toast"); t.textContent = msg || "OK"; t.style.display = "block";
-  setTimeout(() => t.style.display = "none", 1200);
-}
-
-function setSyncBadge(msg) {
-  const b = $("syncBadge");
-  if (b) b.textContent = msg || "";
-}
-
-// ── Push Settings (localStorage – nur Push-Einstellungen, keine Tasks) ──
-
-function getPushSettings() {
-  return JSON.parse(localStorage.getItem(PUSH_SETTINGS_KEY) || "{}");
-}
-function savePushSettings() {
-  const settings = {
-    topic: $("pushTopic").value.trim(),
-    token: $("pushToken").value.trim(),
-    auto: $("pushOnBuild").checked
-  };
-  localStorage.setItem(PUSH_SETTINGS_KEY, JSON.stringify(settings));
-}
-function restorePushSettings() {
-  const s = getPushSettings();
-  $("pushTopic").value = s.topic || "my-secret-task-topic-4711";
-  if (s.token) $("pushToken").value = s.token;
-  $("pushOnBuild").checked = !!s.auto;
-}
-
-// ── Push (ntfy) ──
-
-async function sendNtfyPush(message, title) {
-  const topic = $("pushTopic").value.trim();
-  if (!topic) { setError("Bitte ntfy Topic eintragen."); return false; }
-  const token = $("pushToken").value.trim();
-  const headers = {
-    "Content-Type": "text/plain; charset=utf-8",
-    "Title": title || "Neue Aufgabe",
-    "Priority": "default",
-    "Tags": "bell"
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`, { method: "POST", headers, body: message });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Push fehlgeschlagen (${res.status}): ${txt.slice(0, 120)}`);
-  }
+async function sendNtfyPush(message,title){
+  const topic=$("pushTopic").value.trim(); if(!topic){setError("Bitte ntfy Topic eintragen.");return false;}
+  const token=$("pushToken").value.trim();
+  const headers={"Content-Type":"text/plain; charset=utf-8","Title":title||"Neue Aufgabe","Priority":"default","Tags":"bell"};
+  if(token)headers["Authorization"]=`Bearer ${token}`;
+  const res=await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`,{method:"POST",headers,body:message});
+  if(!res.ok){const txt=await res.text();throw new Error(`Push fehlgeschlagen (${res.status}): ${txt.slice(0,120)}`);}
   return true;
 }
 
-function buildTaskPushText(lines, kv) {
-  const out = ["Neue Aufgabe", "", ...lines];
-  if (kv.length) { out.push(""); kv.forEach(([k, v]) => out.push(`${k}: ${v}`)); }
-  return out.join("\n");
-}
-
-async function pushCurrentTask(lines, kv) {
-  try {
-    await sendNtfyPush(buildTaskPushText(lines, kv), "Neue Aufgabe");
-    showToast("Push gesendet.");
-  } catch (e) {
-    setError(String(e.message || e));
-  }
-}
-
-// ── Firebase Task-Funktionen ──
-
-async function loadAnjaTasks() {
-  setSyncBadge("lädt…");
-  try {
-    anjaTasks = await fbGetAnjaTasks();
-    setSyncBadge(`${anjaTasks.length} Tasks geladen`);
-  } catch (e) {
-    setSyncBadge("⚠ Ladefehler");
-    console.warn("Firebase Ladefehler:", e);
-  }
-}
-
 async function saveAnjaTask(task) {
-  try {
-    const fbKey = await fbSaveAnjaTask(task);
-    anjaTasks.unshift({ ...task, _fbKey: fbKey });
-    setSyncBadge("✓ gespeichert");
-    // Parent informieren (falls als iframe eingebettet)
-    try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: "GT_NEW_TASK", payload: task }, "*");
-      }
-    } catch {}
-  } catch (e) {
-    setSyncBadge("⚠ Sync-Fehler");
-    console.warn("Firebase Schreibfehler:", e);
-    showToast("⚠ Aufgabe nicht gespeichert (Firebase-Fehler).");
-  }
+  const {_fbKey,...clean}=task;
+  const fbKey=await fbPush("anja_tasks",clean);
+  try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:"GT_NEW_TASK",payload:task},"*");}catch{}
+  return fbKey;
 }
 
-function fmtDateTime(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString("de-DE");
+function fmtDateTime(iso){if(!iso)return"";return new Date(iso).toLocaleString("de-DE");}
+
+async function loadCSV(){
+  const res=await fetch("control_panel.csv",{cache:"no-store"});
+  if(!res.ok)throw new Error("control_panel.csv nicht gefunden.");
+  const text=await res.text();
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  const header=lines.shift(),sep=header.includes(";")?";":",";
+  const cols=header.split(sep).map(s=>s.trim().toLowerCase());
+  const idx={typ:cols.indexOf("typ"),bereich:cols.indexOf("bereich"),titel:cols.indexOf("titel"),dauer:cols.indexOf("dauer"),orgasmus:cols.indexOf("orgasmus")};
+  if(Object.values(idx).some(v=>v<0))throw new Error("CSV-Header erwartet: typ;bereich;titel;dauer;orgasmus");
+  DATA=lines.map(line=>{const p=line.split(sep).map(x=>(x??"").trim());return{typ:p[idx.typ],bereich:p[idx.bereich],titel:p[idx.titel],dauer:(p[idx.dauer]||"").toLowerCase()==="true",orgasmus:(p[idx.orgasmus]||"").toLowerCase()==="true"};}).filter(r=>r.typ&&r.bereich&&r.titel);
 }
 
-function renderTaskStatus() {
-  const box = $("taskStatus");
-  if (!box) return;
-  box.innerHTML = "";
-
-  const done = anjaTasks
-    .filter(t => t.status === "erledigt" || t.status === "abgebrochen")
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
-    .slice(0, 10);
-
-  if (!done.length) {
-    const d = document.createElement("div");
-    d.className = "small";
-    d.textContent = "Noch keine Rückmeldungen.";
-    box.appendChild(d);
-    return;
-  }
-
-  done.forEach(t => {
-    const div = document.createElement("div");
-    div.className = "taskline";
-    div.style.flexDirection = "column";
-    div.style.gap = "8px";
-
-    const top = document.createElement("div");
-    top.style.display = "flex";
-    top.style.justifyContent = "space-between";
-    top.style.gap = "10px";
-
-    const left = document.createElement("div");
-    left.style.flex = "1";
-
-    const title = document.createElement("div");
-    title.style.fontWeight = "800";
-    title.textContent = t.title || "Aufgabe";
-
-    const meta = document.createElement("div");
-    meta.className = "small";
-    meta.textContent = [
-      t.doneAt ? `Erledigt: ${fmtDateTime(t.doneAt)}` : "",
-      t.schwierigkeit ? `Schwierigkeit: ${t.schwierigkeit}/5` : "",
-      t.gerne         ? `Gerne: ${t.gerne}/5` : "",
-      t.rueckmeldung  ? `Notiz: ${t.rueckmeldung}` : "",
-      t.belegWA       ? "📱 Beleg per WhatsApp" : "",
-    ].filter(Boolean).join(" · ");
-
-    left.appendChild(title);
-    left.appendChild(meta);
-
-    const badge = document.createElement("div");
-    badge.className = "small";
-    badge.style.whiteSpace = "nowrap";
-    badge.style.fontWeight = "800";
-    badge.textContent = t.status === "erledigt" ? "✓ Erledigt" : "✗ Abgebrochen";
-    badge.style.color = t.status === "erledigt" ? "#7ecfa0" : "#c25d6a";
-
-    top.appendChild(left);
-    top.appendChild(badge);
-    div.appendChild(top);
-    box.appendChild(div);
+function renderModes(){
+  const g=$("modeGrid");g.innerHTML="";
+  [{k:"Aufgabe",h:"Handlung / Verhalten"},{k:"Kleidung",h:"Erscheinung / Symbolik"},{k:"Kombination",h:"Kleidung + Aufgabe"}].forEach(m=>{
+    const b=document.createElement("button");b.className="pill"+(mode===m.k?" active":"");b.type="button";
+    b.innerHTML=`<div class="k">${m.k}</div><div class="h">${m.h}</div>`;b.onclick=()=>selectMode(m.k);g.appendChild(b);
   });
 }
 
-// ── CSV ──
-
-async function loadCSV() {
-  const res = await fetch("control_panel.csv", { cache: "no-store" });
-  if (!res.ok) throw new Error("control_panel.csv nicht gefunden (muss im selben Ordner liegen).");
-  const text = await res.text();
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
-  const header = lines.shift();
-  const sep = header.includes(";") ? ";" : ",";
-  const cols = header.split(sep).map(s => s.trim().toLowerCase());
-  const idx = { typ: cols.indexOf("typ"), bereich: cols.indexOf("bereich"), titel: cols.indexOf("titel"), dauer: cols.indexOf("dauer"), orgasmus: cols.indexOf("orgasmus") };
-  if (Object.values(idx).some(v => v < 0)) throw new Error("CSV-Header erwartet: typ;bereich;titel;dauer;orgasmus");
-  DATA = lines.map(line => {
-    const p = line.split(sep).map(x => (x ?? "").trim());
-    return {
-      typ: p[idx.typ], bereich: p[idx.bereich], titel: p[idx.titel],
-      dauer: (p[idx.dauer] || "").toLowerCase() === "true",
-      orgasmus: (p[idx.orgasmus] || "").toLowerCase() === "true"
-    };
-  }).filter(r => r.typ && r.bereich && r.titel);
+function resetAll(){
+  mode=null;bereich=null;selection=[];currentType=null;orgasmAllowed=null;orgasmRule="";
+  $("inpDauer").value="";$("inpDue").value="";$("inpNote").value="";$("inpCustom").value="";
+  ["stepBereich","stepItem","stepParams","stepResult","sep2","sep3"].forEach(id=>$(id).style.display="none");
+  $("orgSub").style.display="none";
+  document.querySelectorAll("[data-orgsub]").forEach(b=>b.classList.remove("active"));
+  $("orgNo").classList.remove("active");$("orgYes").classList.remove("active");
+  setError(null);renderModes();
 }
 
-// ── UI ──
-
-function renderModes() {
-  const g = $("modeGrid"); g.innerHTML = "";
-  const modes = [{ k: "Aufgabe", h: "Handlung / Verhalten" }, { k: "Kleidung", h: "Erscheinung / Symbolik" }, { k: "Kombination", h: "Kleidung + Aufgabe" }];
-  for (const m of modes) {
-    const b = document.createElement("button");
-    b.className = "pill" + (mode === m.k ? " active" : "");
-    b.type = "button";
-    b.innerHTML = `<div class="k">${m.k}</div><div class="h">${m.h}</div>`;
-    b.onclick = () => selectMode(m.k);
-    g.appendChild(b);
-  }
+function selectMode(m){
+  mode=m;selection=[];bereich=null;currentType=(mode==="Kombination")?"Kleidung":mode;
+  $("stepBereich").style.display="block";
+  ["stepItem","stepParams","stepResult","sep2","sep3"].forEach(id=>$(id).style.display="none");
+  setError(null);renderModes();renderBereiche();
 }
 
-function resetAll() {
-  mode = null; bereich = null; selection = []; currentType = null;
-  orgasmAllowed = null; orgasmRule = "";
-  $("inpDauer").value = ""; $("inpDue").value = ""; $("inpNote").value = ""; $("inpCustom").value = "";
-  ["stepBereich", "stepItem", "stepParams", "stepResult", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
-  $("orgSub").style.display = "none";
-  document.querySelectorAll('[data-orgsub]').forEach(b => b.classList.remove("active"));
-  $("orgNo").classList.remove("active"); $("orgYes").classList.remove("active");
+function renderBereiche(){
+  const g=$("bereichGrid");g.innerHTML="";
+  const t=(mode==="Kombination")?currentType:mode;
+  const bereiche=[...new Set(DATA.filter(r=>r.typ===t).map(r=>r.bereich))].sort((a,b)=>a.localeCompare(b,"de"));
+  bereiche.forEach(bch=>{const b=document.createElement("button");b.className="pill"+(bereich===bch?" active":"");b.type="button";b.innerHTML=`<div class="k">${bch}</div><div class="h">${t}</div>`;b.onclick=()=>{bereich=bch;renderBereiche();renderItems();};g.appendChild(b);});
+}
+
+function toggleSelection(it){const i=selection.findIndex(s=>s.typ===it.typ&&s.bereich===it.bereich&&s.titel===it.titel);if(i>=0)selection.splice(i,1);else selection.push(it);renderItems();}
+function computeNeeds(){return{dauer:selection.some(s=>s.dauer),org:selection.some(s=>s.orgasmus)};}
+
+function renderParamVisibility(){
+  const n=computeNeeds();
+  $("dauerBlock").style.display=n.dauer?"block":"none";
+  $("orgBlock").style.display=n.org?"block":"none";
+  if(!n.org){orgasmAllowed=null;orgasmRule="";$("orgSub").style.display="none";$("orgNo").classList.remove("active");$("orgYes").classList.remove("active");document.querySelectorAll("[data-orgsub]").forEach(b=>b.classList.remove("active"));}
+}
+
+function renderItems(){
+  $("sep2").style.display="block";$("stepItem").style.display="block";$("stepParams").style.display="block";$("stepResult").style.display="none";$("itemGrid").innerHTML="";
+  const t=(mode==="Kombination")?currentType:mode;
+  DATA.filter(r=>r.typ===t&&r.bereich===bereich).forEach(it=>{
+    const sel=selection.some(s=>s.typ===it.typ&&s.bereich===it.bereich&&s.titel===it.titel);
+    const b=document.createElement("button");b.className="pill"+(sel?" active":"");b.type="button";
+    b.innerHTML=`<div class="k">${it.titel}</div><div class="h">${it.typ} · ${it.bereich}</div>`;b.onclick=()=>toggleSelection(it);$("itemGrid").appendChild(b);
+  });
+  $("sep3").style.display="block";renderParamVisibility();
+  if(mode==="Kombination")setError(`Kombination: erst ${currentType}. 1–2 wählen, dann „Aufgabe erstellen".`);else setError(null);
+}
+
+function createRandomTaskInRubrik(){
+  setError(null);if(!mode){setError("Bitte Modus wählen.");return;}if(!bereich){setError("Bitte Bereich wählen.");return;}
+  const t=(mode==="Kombination")?currentType:mode;
+  const items=DATA.filter(r=>r.typ===t&&r.bereich===bereich);if(!items.length){setError("Keine Einträge in dieser Rubrik.");return;}
+  const randomItem=items[Math.floor(Math.random()*items.length)];
+  if(mode==="Kombination"){selection=[...selection.filter(s=>s.typ!==currentType),randomItem];}else{selection=[randomItem];}
+  renderItems();buildResult();
+}
+
+async function buildResult(){
   setError(null);
-  renderModes();
-}
-
-function selectMode(m) {
-  mode = m; selection = []; bereich = null;
-  currentType = (mode === "Kombination") ? "Kleidung" : mode;
-  $("stepBereich").style.display = "block";
-  ["stepItem", "stepParams", "stepResult", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
-  setError(null);
-  renderModes(); renderBereiche();
-}
-
-function renderBereiche() {
-  const g = $("bereichGrid"); g.innerHTML = "";
-  const t = (mode === "Kombination") ? currentType : mode;
-  const bereiche = [...new Set(DATA.filter(r => r.typ === t).map(r => r.bereich))].sort((a, b) => a.localeCompare(b, "de"));
-  for (const bch of bereiche) {
-    const b = document.createElement("button");
-    b.className = "pill" + (bereich === bch ? " active" : "");
-    b.type = "button";
-    b.innerHTML = `<div class="k">${bch}</div><div class="h">${t}</div>`;
-    b.onclick = () => { bereich = bch; renderBereiche(); renderItems(); };
-    g.appendChild(b);
-  }
-}
-
-function toggleSelection(it) {
-  const i = selection.findIndex(s => s.typ === it.typ && s.bereich === it.bereich && s.titel === it.titel);
-  if (i >= 0) selection.splice(i, 1); else selection.push(it);
-  renderItems();
-}
-
-function computeNeeds() {
-  return { dauer: selection.some(s => s.dauer), org: selection.some(s => s.orgasmus) };
-}
-
-function renderParamVisibility() {
-  const n = computeNeeds();
-  $("dauerBlock").style.display = n.dauer ? "block" : "none";
-  $("orgBlock").style.display = n.org ? "block" : "none";
-  if (!n.org) {
-    orgasmAllowed = null; orgasmRule = "";
-    $("orgSub").style.display = "none";
-    $("orgNo").classList.remove("active"); $("orgYes").classList.remove("active");
-    document.querySelectorAll('[data-orgsub]').forEach(b => b.classList.remove("active"));
-  }
-}
-
-function renderItems() {
-  $("sep2").style.display = "block";
-  $("stepItem").style.display = "block";
-  $("stepParams").style.display = "block";
-  $("stepResult").style.display = "none";
-  $("itemGrid").innerHTML = "";
-  const t = (mode === "Kombination") ? currentType : mode;
-  const items = DATA.filter(r => r.typ === t && r.bereich === bereich);
-  for (const it of items) {
-    const sel = selection.some(s => s.typ === it.typ && s.bereich === it.bereich && s.titel === it.titel);
-    const b = document.createElement("button");
-    b.className = "pill" + (sel ? " active" : "");
-    b.type = "button";
-    b.innerHTML = `<div class="k">${it.titel}</div><div class="h">${it.typ} · ${it.bereich}</div>`;
-    b.onclick = () => toggleSelection(it);
-    $("itemGrid").appendChild(b);
-  }
-  $("sep3").style.display = "block";
-  renderParamVisibility();
-  if (mode === "Kombination") setError(`Kombination: erst ${currentType}. 1–2 wählen, dann „Aufgabe erstellen".`);
-  else setError(null);
-}
-
-function getCurrentRubrikItems() {
-  if (!bereich) return [];
-  const t = (mode === "Kombination") ? currentType : mode;
-  return DATA.filter(r => r.typ === t && r.bereich === bereich);
-}
-
-function createRandomTaskInRubrik() {
-  setError(null);
-  if (!mode) { setError("Bitte zuerst einen Modus wählen."); return; }
-  if (!bereich) { setError("Bitte zuerst einen Bereich wählen."); return; }
-  const items = getCurrentRubrikItems();
-  if (items.length === 0) { setError("In dieser Rubrik sind keine Einträge vorhanden."); return; }
-  const randomItem = items[Math.floor(Math.random() * items.length)];
-  if (mode === "Kombination") {
-    const keep = selection.filter(s => s.typ !== currentType);
-    selection = [...keep, randomItem];
-  } else {
-    selection = [randomItem];
-  }
-  renderItems();
-  buildResult();
-}
-
-async function buildResult() {
-  setError(null);
-
-  if (mode === "Kombination" && currentType === "Kleidung") {
-    currentType = "Aufgabe"; bereich = null;
-    renderBereiche();
-    ["stepItem", "stepParams", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
-    setError("Jetzt Aufgabe wählen. Kleidung bleibt gespeichert.");
-    return;
-  }
-  if (mode === "Kombination") {
-    const hasK = selection.some(s => s.typ === "Kleidung"), hasA = selection.some(s => s.typ === "Aufgabe");
-    if (!hasK || !hasA) { setError("Für Kombination braucht es mindestens 1 Kleidung und 1 Aufgabe."); return; }
-  }
-
-  const custom = $("inpCustom").value.trim();
-  if (!custom && selection.length === 0) {
-    setError("Bitte mindestens eine Auswahl treffen – oder eigene Aufgabe eingeben.");
-    return;
-  }
-
-  const n = computeNeeds();
-  const dauerVal = n.dauer ? $("inpDauer").value.trim() : "";
-  if (n.org && orgasmAllowed === null) { setError("Bitte Orgasmus-Regel wählen."); return; }
-  if (n.org && orgasmAllowed === true && !orgasmRule) { setError("Bitte Regel wählen (Bildnachweis / ohne wegwischen / Aufnahme)."); return; }
-
-  const dueLocal = $("inpDue").value;
-  const dueAt = dueLocal ? new Date(dueLocal).toISOString() : "";
-  const note = $("inpNote").value.trim();
-
-  let lines = [];
-  if (custom) {
-    lines = [custom];
-  } else {
-    lines = selection.slice().sort((a, b) => {
-      const o = x => x.typ === "Kleidung" ? 0 : 1;
-      return o(a) - o(b) || a.bereich.localeCompare(b.bereich, "de") || a.titel.localeCompare(b.titel, "de");
-    }).map(s => s.titel);
-  }
-
-  $("resultMain").textContent = lines.join("\n");
-
-  const kv = [];
-  if (dueAt) kv.push(["Fällig am", fmtDateTime(dueAt)]);
-  if (note) kv.push(["Bemerkung", note]);
-  if (n.dauer && dauerVal) kv.push(["Dauer", dauerVal]);
-  if (n.org) {
-    kv.push(["Orgasmus", orgasmAllowed ? "Gestattet" : "Nicht gestattet"]);
-    if (orgasmAllowed) kv.push(["Regel", orgasmRule]);
-  }
-
-  const kvEl = $("resultKV"); kvEl.innerHTML = "";
-  for (const [k, v] of kv) {
-    const k1 = document.createElement("div"); k1.className = "k"; k1.textContent = k + ":";
-    const v1 = document.createElement("div"); v1.textContent = v;
-    kvEl.appendChild(k1); kvEl.appendChild(v1);
-  }
-
-  $("stepResult").style.display = "block";
-
-  // ✅ Task in Firebase speichern
-  const taskObj = {
-    id: `anja-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-    title: lines.join(" / "),
-    note,
-    dueAt,
-    status: "offen",
-    createdAt: new Date().toISOString()
-  };
-
+  if(mode==="Kombination"&&currentType==="Kleidung"){currentType="Aufgabe";bereich=null;renderBereiche();["stepItem","stepParams","sep2","sep3"].forEach(id=>$(id).style.display="none");setError("Jetzt Aufgabe wählen. Kleidung bleibt gespeichert.");return;}
+  if(mode==="Kombination"){const hasK=selection.some(s=>s.typ==="Kleidung"),hasA=selection.some(s=>s.typ==="Aufgabe");if(!hasK||!hasA){setError("Kombination braucht mindestens 1 Kleidung und 1 Aufgabe.");return;}}
+  const custom=$("inpCustom").value.trim();
+  if(!custom&&selection.length===0){setError("Bitte Auswahl treffen oder eigene Aufgabe eingeben.");return;}
+  const n=computeNeeds(),dauerVal=n.dauer?$("inpDauer").value.trim():"";
+  if(n.org&&orgasmAllowed===null){setError("Bitte Orgasmus-Regel wählen.");return;}
+  if(n.org&&orgasmAllowed===true&&!orgasmRule){setError("Bitte Regel wählen.");return;}
+  const dueLocal=$("inpDue").value,dueAt=dueLocal?new Date(dueLocal).toISOString():"",note=$("inpNote").value.trim();
+  let lines=custom?[custom]:selection.slice().sort((a,b)=>{const o=x=>x.typ==="Kleidung"?0:1;return o(a)-o(b)||a.bereich.localeCompare(b.bereich,"de")||a.titel.localeCompare(b.titel,"de");}).map(s=>s.titel);
+  $("resultMain").textContent=lines.join("\n");
+  const kv=[];if(dueAt)kv.push(["Fällig am",fmtDateTime(dueAt)]);if(note)kv.push(["Bemerkung",note]);if(n.dauer&&dauerVal)kv.push(["Dauer",dauerVal]);if(n.org){kv.push(["Orgasmus",orgasmAllowed?"Gestattet":"Nicht gestattet"]);if(orgasmAllowed)kv.push(["Regel",orgasmRule]);}
+  const kvEl=$("resultKV");kvEl.innerHTML="";
+  for(const[k,v]of kv){const k1=document.createElement("div");k1.className="kl";k1.textContent=k+":";const v1=document.createElement("div");v1.textContent=v;kvEl.appendChild(k1);kvEl.appendChild(v1);}
+  $("stepResult").style.display="block";
+  const taskObj={id:`anja-${Date.now()}-${Math.floor(Math.random()*10000)}`,title:lines.join(" / "),note,dueAt,status:"offen",createdAt:new Date().toISOString()};
   await saveAnjaTask(taskObj);
-  renderTaskStatus();
-
-  if ($("pushOnBuild").checked) {
-    pushCurrentTask(lines, kv);
-  }
+  if($("pushOnBuild").checked){try{const out=["Neue Aufgabe","","..."+lines.join("\n")];if(kv.length){out.push("");kv.forEach(([k,v])=>out.push(`${k}: ${v}`));}await sendNtfyPush(out.join("\n"),"Neue Aufgabe");showToast("Aufgabe erstellt & Push gesendet.");}catch(e){setError(String(e.message||e));}}
+  else{showToast("Aufgabe erstellt.");}
 }
 
-function buildCopyText() {
-  const main = $("resultMain").textContent.trim();
-  const kv = $("resultKV");
-  const kids = [...kv.children];
-  const out = ["DEINE AUFGABE", "", "" + main];
-  if (kids.length) {
-    out.push("");
-    for (let i = 0; i < kids.length; i += 2) {
-      out.push(`${kids[i].textContent.replace(":", "").trim()}: ${kids[i + 1].textContent.trim()}`);
-    }
-  }
-  return out.join("\n");
+function wire(){
+  $("btnReload").onclick=async()=>{try{await loadCSV();resetAll();showToast("Daten geladen.");try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:"GT_REFRESH"},"*");}catch{}}catch(e){setError(String(e.message||e));}};
+  $("btnReset").onclick=()=>resetAll();
+  $("btnNew").onclick=()=>{selection=[];bereich=null;$("inpDauer").value="";$("inpDue").value="";$("inpNote").value="";$("inpCustom").value="";orgasmAllowed=null;orgasmRule="";$("orgSub").style.display="none";$("orgNo").classList.remove("active");$("orgYes").classList.remove("active");document.querySelectorAll("[data-orgsub]").forEach(b=>b.classList.remove("active"));$("stepResult").style.display="none";if(mode==="Kombination"){currentType="Kleidung";renderBereiche();["stepItem","stepParams","sep2","sep3"].forEach(id=>$(id).style.display="none");}else{renderBereiche();["stepItem","stepParams","sep2","sep3"].forEach(id=>$(id).style.display="none");}setError(null);};
+  $("btnBuild").onclick=buildResult;
+  $("btnRandom").onclick=createRandomTaskInRubrik;
+  $("btnPushTest").onclick=async()=>{setError(null);try{await sendNtfyPush("Testnachricht vom Control Panel","Push-Test");showToast("Push-Test gesendet.");}catch(e){setError(String(e.message||e));}};
+  $("pushTopic").onchange=savePushSettings;$("pushToken").onchange=savePushSettings;$("pushOnBuild").onchange=savePushSettings;
+  $("btnCopy").onclick=async()=>{const main=$("resultMain").textContent.trim(),kids=[...$("resultKV").children],out=["AUFGABE","",""+main];if(kids.length){out.push("");for(let i=0;i<kids.length;i+=2)out.push(`${kids[i].textContent.replace(":","").trim()}: ${kids[i+1].textContent.trim()}`);}const txt=out.join("\n");try{await navigator.clipboard.writeText(txt);showToast("Kopiert.");}catch{const ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();showToast("Kopiert.");}};
+  $("orgNo").onclick=()=>{orgasmAllowed=false;orgasmRule="";$("orgNo").classList.add("active");$("orgYes").classList.remove("active");$("orgSub").style.display="none";document.querySelectorAll("[data-orgsub]").forEach(b=>b.classList.remove("active"));};
+  $("orgYes").onclick=()=>{orgasmAllowed=true;$("orgYes").classList.add("active");$("orgNo").classList.remove("active");$("orgSub").style.display="block";};
+  document.querySelectorAll("[data-orgsub]").forEach(b=>b.onclick=()=>{if(orgasmAllowed!==true)return;document.querySelectorAll("[data-orgsub]").forEach(x=>x.classList.remove("active"));b.classList.add("active");orgasmRule=b.getAttribute("data-orgsub");});
 }
 
-function wire() {
-  $("btnReload").onclick = async () => {
-    try {
-      await Promise.all([loadCSV(), loadAnjaTasks()]);
-      resetAll(); renderTaskStatus(); showToast("Daten geladen.");
-      try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "GT_REFRESH" }, "*"); } catch {}
-    } catch (e) { setError(String(e.message || e)); }
-  };
-
-  $("btnReset").onclick = () => { resetAll(); renderTaskStatus(); };
-
-  $("btnNew").onclick = () => {
-    selection = []; bereich = null;
-    $("inpDauer").value = ""; $("inpDue").value = ""; $("inpNote").value = ""; $("inpCustom").value = "";
-    orgasmAllowed = null; orgasmRule = "";
-    $("orgSub").style.display = "none";
-    $("orgNo").classList.remove("active"); $("orgYes").classList.remove("active");
-    document.querySelectorAll('[data-orgsub]').forEach(b => b.classList.remove("active"));
-    $("stepResult").style.display = "none";
-    if (mode === "Kombination") {
-      currentType = "Kleidung"; renderBereiche();
-      ["stepItem", "stepParams", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
-    } else {
-      renderBereiche();
-      ["stepItem", "stepParams", "sep2", "sep3"].forEach(id => $(id).style.display = "none");
-    }
-    setError(null);
-  };
-
-  $("btnBuild").onclick = buildResult;
-  $("btnRandom").onclick = createRandomTaskInRubrik;
-
-  $("btnPushTest").onclick = async () => {
-    setError(null);
-    try { await sendNtfyPush("Testnachricht vom Control Panel", "Push-Test"); showToast("Push-Test gesendet."); }
-    catch (e) { setError(String(e.message || e)); }
-  };
-
-  $("pushTopic").onchange = savePushSettings;
-  $("pushToken").onchange = savePushSettings;
-  $("pushOnBuild").onchange = savePushSettings;
-
-  $("btnCopy").onclick = async () => {
-    const txt = buildCopyText();
-    try { await navigator.clipboard.writeText(txt); showToast("Kopiert."); }
-    catch {
-      const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta);
-      ta.select(); document.execCommand("copy"); ta.remove(); showToast("Kopiert.");
-    }
-  };
-
-  $("orgNo").onclick = () => {
-    orgasmAllowed = false; orgasmRule = "";
-    $("orgNo").classList.add("active"); $("orgYes").classList.remove("active");
-    $("orgSub").style.display = "none";
-    document.querySelectorAll('[data-orgsub]').forEach(b => b.classList.remove("active"));
-  };
-
-  $("orgYes").onclick = () => {
-    orgasmAllowed = true;
-    $("orgYes").classList.add("active"); $("orgNo").classList.remove("active");
-    $("orgSub").style.display = "block";
-  };
-
-  document.querySelectorAll('[data-orgsub]').forEach(b => b.onclick = () => {
-    if (orgasmAllowed !== true) return;
-    document.querySelectorAll('[data-orgsub]').forEach(x => x.classList.remove("active"));
-    b.classList.add("active");
-    orgasmRule = b.getAttribute("data-orgsub");
-  });
-}
-
-// ── Init ──
-
-(async () => {
-  wire();
-  restorePushSettings();
-
-  try {
-    await Promise.all([loadCSV(), loadAnjaTasks()]);
-    resetAll();
-    renderTaskStatus();
-  } catch (e) {
-    resetAll();
-    renderTaskStatus();
-    setError(String(e.message || e));
-  }
-
-  // Status alle 30 Sekunden aus Firebase aktualisieren
-  setInterval(async () => {
-    await loadAnjaTasks();
-    renderTaskStatus();
-  }, 30000);
+(async()=>{
+  wire();restorePushSettings();
+  try{await loadCSV();resetAll();}catch(e){resetAll();setError(String(e.message||e));}
 })();
 </script>
 </body>
