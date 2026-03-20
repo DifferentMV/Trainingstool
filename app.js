@@ -921,39 +921,90 @@ function renderDomWochenplan() {
       await fbDeleteWochenplanEintrag(e._fbKey);
       state.wochenplan=state.wochenplan.filter(x=>x._fbKey!==e._fbKey); toast("Gelöscht."); render();
     }},["✕"]);
-
     return h("div",{class:"item"},[
       h("div",{class:"badge task",style:"font-size:18px;background:transparent;"},["⏳"]),
       h("div",{class:"item-main"},[
         h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel+(e.dauer?" · "+e.dauer:"")]),
         h("div",{class:"small"},[e.typ==="w"?"💭 Wunsch":"👑 Aufgabe"]),
         h("div",{class:"row",style:"margin-top:10px;gap:8px;flex-wrap:wrap;"},[btnOk,btnNein,btnDel]),
-        kommentarInput,
-        btnSendAbgelehnt,
+        kommentarInput, btnSendAbgelehnt,
       ]),
     ]);
   }
 
-  // Zeige Abschick-Button wenn Kommentarfeld sichtbar
-  // (einfacher: immer anzeigen wenn Ablehnen geklickt)
-
   const heute = todayKey();
   function buildBestätigtEl(e) {
     const isPast = e.datum < heute;
+    const btnDel = h("button",{class:"btn secondary",type:"button",style:"min-height:36px;padding:4px 10px;font-size:12px;color:#c25d6a;",onclick:async()=>{
+      await fbDeleteWochenplanEintrag(e._fbKey);
+      state.wochenplan=state.wochenplan.filter(x=>x._fbKey!==e._fbKey); toast("Gelöscht."); render();
+    }},["✕"]);
     return h("div",{class:"item",style:isPast?"opacity:0.55;":""},[
       h("div",{class:"badge task",style:"color:#7ecfa0;background:transparent;font-size:18px;"},["✓"]),
       h("div",{class:"item-main"},[
         h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel+(e.dauer?" · "+e.dauer:"")]),
         h("div",{class:"small"},[e.typ==="w"?"💭 Wunsch":"👑 Aufgabe"]),
+        h("div",{style:"margin-top:6px;"},[btnDel]),
       ]),
     ]);
   }
+
+  // ── Eintrag direkt hinzufügen (Dom) ──
+  const inpDatum = h("input",{type:"date",class:"input",value:heute,style:"min-height:44px;"});
+
+  // Dropdown: offene Aufgaben + Freitext-Option
+  const selEintrag = document.createElement("select"); selEintrag.className="select"; selEintrag.style.minHeight="44px";
+  const optLeer = document.createElement("option"); optLeer.value=""; optLeer.textContent="-- Aufgabe wählen --"; selEintrag.appendChild(optLeer);
+  const grpA = document.createElement("optgroup"); grpA.label="👑 Offene Aufgaben";
+  state.anjaTasks.filter(t=>t.status==="offen"||t.status==="angenommen").forEach(t=>{
+    const o=document.createElement("option"); o.value="a:"+t.title; o.textContent=t.title||"Aufgabe"; grpA.appendChild(o);
+  });
+  selEintrag.appendChild(grpA);
+  const optFrei = document.createElement("option"); optFrei.value="__frei__"; optFrei.textContent="✏ Eigener Eintrag (Freitext)..."; selEintrag.appendChild(optFrei);
+
+  const txtFrei  = h("input",{type:"text",class:"input",placeholder:"Eigener Eintrag...",style:"min-height:44px;display:none;"});
+  const txtDauer = h("input",{type:"text",class:"input",placeholder:"Dauer / Häufigkeit (z.B. 1h, 3x)...",style:"min-height:40px;font-size:13px;"});
+
+  selEintrag.addEventListener("change",()=>{
+    txtFrei.style.display = selEintrag.value==="__frei__" ? "block" : "none";
+  });
+
+  const btnHinzu = h("button",{class:"btn",type:"button",style:"min-height:48px;",onclick:async()=>{
+    const datum = inpDatum.value; if(!datum){toast("Bitte Datum wählen.");return;}
+    let titel = "";
+    if(selEintrag.value==="__frei__"){
+      titel = txtFrei.value.trim(); if(!titel){toast("Bitte Eintrag eingeben.");return;}
+    } else {
+      const [,...rest] = selEintrag.value.split(":");
+      titel = rest.join(":");
+    }
+    if(!titel){toast("Bitte Eintrag wählen.");return;}
+    const dauer = txtDauer.value.trim();
+    const entry = {datum,typ:"a",titel,dauer,status:"bestätigt",erstellt_von:"dom",createdAt:nowISO(),updatedAt:nowISO()};
+    const fbKey = await fbAddWochenplanEintrag(entry).catch(()=>null);
+    if(fbKey){
+      state.wochenplan.push({...entry,_fbKey:fbKey});
+      toast("Eintrag hinzugefügt.");
+      // Felder zurücksetzen
+      selEintrag.value=""; txtFrei.value=""; txtDauer.value=""; txtFrei.style.display="none";
+      render();
+    } else { toast("Fehler beim Speichern."); }
+  }},["+ Hinzufügen"]);
+
+  const addCard = h("div",{class:"card"},[
+    sectionTitle("➕","Eintrag hinzufügen",null),
+    h("div",{class:"small",style:"margin-bottom:10px;"},["Direkt als bestätigt speichern."]),
+    h("div",{style:"display:flex;flex-direction:column;gap:8px;"},[
+      inpDatum, selEintrag, txtFrei, txtDauer, btnHinzu,
+    ]),
+  ]);
 
   const refreshBtn=h("button",{class:"btn secondary",type:"button",style:"min-height:36px;",onclick:async()=>{
     toast("Lade..."); state.wochenplan=await fbGetWochenplan().catch(()=>[]); render(); toast("Aktualisiert.");
   }},["🔄"]);
 
   return h("div",{style:"display:flex;flex-direction:column;gap:12px;"},[
+    addCard,
     h("div",{class:"card"},[
       sectionTitle("📥","Vorschläge",refreshBtn),
       vorschlaege.length
