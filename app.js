@@ -737,12 +737,16 @@ function renderSubWochenplan() {
     const selList = h("div",{style:"display:flex;flex-direction:column;gap:6px;"});
     function addRow() {
       const sel = makeSelectForDay(day);
-      const btnDel = h("button",{class:"btn secondary",type:"button",style:"min-height:40px;padding:4px 10px;color:#c25d6a;",onclick:()=>{
-        if(selList.children.length>1){row.remove();}else{sel.value="";}
+      sel.style.minHeight="44px";
+      const txtDauer = h("input",{type:"text",class:"input",placeholder:"Dauer / Haeufigkeit (z.B. 1h, 3x, 200ml)...",style:"min-height:38px;font-size:13px;margin-top:4px;"});
+      const btnDel = h("button",{class:"btn secondary",type:"button",style:"min-height:44px;padding:4px 10px;color:#c25d6a;flex-shrink:0;",onclick:()=>{
+        if(selList.children.length>1){wrapper.remove();}else{sel.value="";txtDauer.value="";}
       }},["x"]);
-      const row = h("div",{style:"display:flex;gap:6px;align-items:center;"},[sel,btnDel]);
-      row._sel=sel;
-      selList.appendChild(row);
+      const topRow = h("div",{style:"display:flex;gap:6px;align-items:center;"},[sel,btnDel]);
+      const wrapper = h("div",{style:"display:flex;flex-direction:column;gap:0;"},[topRow,txtDauer]);
+      wrapper._sel=sel;
+      wrapper._txtDauer=txtDauer;
+      selList.appendChild(wrapper);
     }
     addRow();
     const btnAdd = h("button",{class:"btn secondary",type:"button",style:"min-height:36px;font-size:13px;padding:4px 10px;",onclick:()=>addRow()},["+  Eintrag"]);
@@ -770,11 +774,12 @@ function renderSubWochenplan() {
     const eintraege=[];
     Array.from(tagesContainer.children).forEach(block=>{
       const day=block.dataset.day; if(!day) return;
-      Array.from(block._selList.children).forEach(row=>{
-        const val=row._sel&&row._sel.value; if(!val) return;
+      Array.from(block._selList.children).forEach(wrapper=>{
+        const val=wrapper._sel&&wrapper._sel.value; if(!val) return;
         const [typ,...rest]=val.split(":");
         const titel=rest.join(":");
-        if(titel) eintraege.push({datum:day,typ,titel,status:"vorschlag",erstellt_von:"sub",createdAt:nowISO()});
+        const dauer=(wrapper._txtDauer?.value||"").trim();
+        if(titel) eintraege.push({datum:day,typ,titel,dauer,status:"vorschlag",erstellt_von:"sub",createdAt:nowISO()});
       });
     });
     if(!eintraege.length){toast("Bitte mindestens einen Eintrag waehlen.");return;}
@@ -815,24 +820,24 @@ function renderSubWochenplan() {
   }
 
   function exportICS() {
-    if(!best.length){toast("Keine bestaeligten Eintraege.");return;}
-    let ics="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Glam Trainer//DE\r\nCALSCALE:GREGORIAN\r\n";
-    best.forEach(e=>{
-      const d=e.datum.replace(/-/g,"");
-      ics+="BEGIN:VEVENT\r\n";
-      ics+="DTSTART;VALUE=DATE:"+d+"\r\n";
-      ics+="DTEND;VALUE=DATE:"+d+"\r\n";
-      ics+="SUMMARY:"+e.titel.replace(/\n/g," ")+"\r\n";
-      ics+="DESCRIPTION:"+(e.typ==="w"?"Wunsch":"Aufgabe")+"\r\n";
-      ics+="UID:gt-"+(e._fbKey||Date.now())+"\r\n";
-      ics+="END:VEVENT\r\n";
+    const best = wp.filter(e=>e.status==="bestätigt");
+    if(!best.length){toast("Keine bestätigten Einträge.");return;}
+    const byDay = {};
+    best.forEach(e=>{if(!byDay[e.datum])byDay[e.datum]=[];byDay[e.datum].push(e);});
+    let ics = "BEGIN:VCALENDAR\nVERSION:2.0\nCALSCALE:GREGORIAN\nPRODID:-//GlamTrainer//DE\n";
+    Object.entries(byDay).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([datum,eintraege])=>{
+      const d=datum.replace(/-/g,"");
+      const desc=eintraege.map(e=>(e.dauer?e.dauer+" ":"")+e.titel).join("\n");
+      ics += "BEGIN:VEVENT\n";
+      ics += "DTSTART;VALUE=DATE:"+d+"\n";
+      ics += "SUMMARY:Glam Trainer\n";
+      ics += "DESCRIPTION:"+desc.replace(/\n/g,"\\n")+"\n";
+      ics += "UID:gt-"+datum+"-"+Date.now()+"@glamtrainer\n";
+      ics += "END:VEVENT\n";
     });
-    ics+="END:VCALENDAR";
-    const blob=new Blob([ics],{type:"text/calendar;charset=utf-8"});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download="wochenplan.ics";
-    a.click();
+    ics += "END:VCALENDAR";
+    const blob=new Blob([ics],{type:"text/calendar"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="wochenplan.ics";a.click();
     toast("Kalender exportiert.");
   }
 
@@ -878,7 +883,7 @@ function renderDomWochenplan() {
     return h("div",{class:"item"},[
       h("div",{class:"badge task",style:"font-size:18px;background:transparent;"},["⏳"]),
       h("div",{class:"item-main"},[
-        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel]),
+        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel+(e.dauer?" · "+e.dauer:"")]),
         h("div",{class:"small"},[e.typ==="w"?"💭 Wunsch":"👑 Aufgabe"]),
         h("div",{class:"row",style:"margin-top:10px;gap:8px;flex-wrap:wrap;"},[btnOk,btnNein,btnDel]),
         kommentarInput,
@@ -896,7 +901,7 @@ function renderDomWochenplan() {
     return h("div",{class:"item",style:isPast?"opacity:0.55;":""},[
       h("div",{class:"badge task",style:"color:#7ecfa0;background:transparent;font-size:18px;"},["✓"]),
       h("div",{class:"item-main"},[
-        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel]),
+        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel+(e.dauer?" · "+e.dauer:"")]),
         h("div",{class:"small"},[e.typ==="w"?"💭 Wunsch":"👑 Aufgabe"]),
       ]),
     ]);
