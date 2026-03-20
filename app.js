@@ -883,12 +883,37 @@ function renderSubWochenplan() {
     toast("Kalender exportiert.");
   }
 
-  const btnICS = best.length ? h("button",{class:"btn secondary",type:"button",style:"min-height:44px;",onclick:exportICS},["Als Kalender exportieren (.ics)"]) : null;
+  function buildGoogleLinks() {
+    const best = wp.filter(e=>e.status==="bestätigt");
+    if(!best.length) return null;
+    const byDay = {};
+    best.forEach(e=>{if(!byDay[e.datum])byDay[e.datum]=[];byDay[e.datum].push(e);});
+    const links = Object.entries(byDay).sort((a,b)=>a[0].localeCompare(b[0])).map(([datum,eintraege])=>{
+      const d = datum.replace(/-/g,"");
+      const summary = "Glam Trainer";
+      const details = eintraege.map(e=>(e.dauer?e.dauer+" ":"")+e.titel).join("%0A");
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(summary)}&dates=${d}/${d}&details=${details}`;
+      return h("a",{
+        href: url,
+        target: "_blank",
+        style: "display:block;padding:10px 14px;background:rgba(164,107,138,.15);border:1px solid rgba(164,107,138,.4);border-radius:12px;color:var(--text,#f2f3f5);text-decoration:none;font-size:14px;",
+      },[fmtDateDE(datum)+" → Google Kalender ↗"]);
+    });
+    return h("div",{style:"display:flex;flex-direction:column;gap:8px;margin-top:10px;"},[
+      h("div",{class:"small",style:"margin-bottom:4px;"},["📱 In Google Kalender öffnen (je Tag):"]),
+      ...links,
+    ]);
+  }
+
+  const exportRow = wp.filter(e=>e.status==="bestätigt").length ? h("div",{style:"display:flex;flex-direction:column;gap:8px;margin-top:12px;"},[
+    h("button",{class:"btn secondary",type:"button",style:"min-height:44px;",onclick:exportICS},["📅 Als .ics herunterladen (Desktop)"]),
+    buildGoogleLinks(),
+  ].filter(Boolean)) : null;
 
   const planCard = h("div",{class:"card"},[
     h("div",{style:"font-weight:700;font-size:15px;margin-bottom:10px;"},["Freigegebene Woche"]),
     best.length ? h("div",{class:"list"},best.map(wpEl)) : h("div",{class:"small"},["Noch nichts bestaetigt."]),
-    btnICS ? h("div",{style:"margin-top:12px;"},[btnICS]) : null,
+    exportRow,
     off.length?h("div",{style:"margin-top:12px;"},[h("div",{class:"small",style:"margin-bottom:6px;font-weight:700;"},["Wartet auf Anjas Bestaetigung:"]),h("div",{class:"list"},off.map(wpEl))]):null,
     abg.length?h("div",{style:"margin-top:12px;"},[h("div",{class:"small",style:"margin-bottom:6px;font-weight:700;color:#c25d6a;"},["Abgelehnt:"]),h("div",{class:"list"},abg.map(wpEl))]):null,
   ].filter(Boolean));
