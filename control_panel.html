@@ -321,7 +321,8 @@ async function buildResult(){
   $("stepResult").style.display="block";
   const taskObj={id:`anja-${Date.now()}-${Math.floor(Math.random()*10000)}`,title:lines.join(" / "),note,dueAt,status:"offen",createdAt:new Date().toISOString()};
   await saveAnjaTask(taskObj);
-  if($("pushOnBuild").checked){try{const out=["Neue Aufgabe","","..."+lines.join("\n")];if(kv.length){out.push("");kv.forEach(([k,v])=>out.push(`${k}: ${v}`));}await sendNtfyPush(out.join("\n"),"Neue Aufgabe");showToast("Aufgabe erstellt & Push gesendet.");}catch(e){setError(String(e.message||e));}}
+  const _topic=$("pushTopic").value.trim();
+  if(_topic){try{const out=["Neue Aufgabe","",...lines];if(kv.length){out.push("");kv.forEach(([k,v])=>out.push(k+": "+v));}await sendNtfyPush(out.join("\n"),"Neue Aufgabe");showToast("Aufgabe erstellt & Push gesendet.");}catch(e){setError(String(e.message||e));showToast("Aufgabe erstellt (Push fehlgeschlagen).");}}
   else{showToast("Aufgabe erstellt.");}
 }
 
