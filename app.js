@@ -711,15 +711,38 @@ function renderSubWochenplan() {
     h("div",{class:"row"},[txtWunsch, btnWunschAdd]),
   ]);
 
-  // Neuer Vorschlag
+  // Neuer Vorschlag – mit localStorage-Entwurf
+  const DRAFT_KEY = "gt_wochenplan_draft_v1";
+
+  function saveDraft() {
+    const draft = { von: inpVon.value, bis: inpBis.value, tage: {} };
+    Array.from(tagesContainer.children).forEach(block=>{
+      const day=block.dataset.day; if(!day) return;
+      const rows=[];
+      Array.from(block._selList.children).forEach(wrapper=>{
+        const val=wrapper._sel?.value||"", dauer=wrapper._txtDauer?.value||"";
+        if(val||dauer) rows.push({val,dauer});
+      });
+      if(rows.length) draft.tage[day]=rows;
+    });
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  }
+
+  function loadDraft() {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY)||"null"); } catch { return null; }
+  }
+
+  function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
+
+  const draft = loadDraft();
   const monday = nextMondayISO();
   const sunday = nextSundayISO(monday);
-  const inpVon = h("input",{type:"date",class:"input",value:monday});
-  const inpBis = h("input",{type:"date",class:"input",value:sunday});
+  const inpVon = h("input",{type:"date",class:"input",value: draft?.von||monday});
+  const inpBis = h("input",{type:"date",class:"input",value: draft?.bis||sunday});
   const tagesContainer = h("div",{style:"display:flex;flex-direction:column;gap:12px;margin-top:12px;"});
 
-  function makeSelectForDay(day) {
-    const sel = document.createElement("select"); sel.className="select"; sel.style.flex="1";
+  function makeSelectForDay(day, preVal) {
+    const sel = document.createElement("select"); sel.className="select"; sel.style.flex="1"; sel.style.minHeight="44px";
     const optEmpty = document.createElement("option"); optEmpty.value=""; optEmpty.textContent="-- Eintrag waehlen --"; sel.appendChild(optEmpty);
     const grpW = document.createElement("optgroup"); grpW.label="Meine Wuensche";
     wuensche.forEach(w=>{const o=document.createElement("option");o.value="w:"+w.titel;o.textContent=w.titel;grpW.appendChild(o);});
@@ -730,26 +753,42 @@ function renderSubWochenplan() {
       anjaDayTasks.forEach(t=>{const o=document.createElement("option");o.value="a:"+t.id;o.textContent=t.title||"Aufgabe";grpA.appendChild(o);});
       sel.appendChild(grpA);
     }
+    if(preVal) sel.value=preVal;
+    sel.addEventListener("change", saveDraft);
     return sel;
   }
 
-  function makeDayBlock(day) {
+  function makeDayBlock(day, savedRows) {
     const selList = h("div",{style:"display:flex;flex-direction:column;gap:6px;"});
-    function addRow() {
-      const sel = makeSelectForDay(day);
-      sel.style.minHeight="44px";
-      const txtDauer = h("input",{type:"text",class:"input",placeholder:"Dauer / Haeufigkeit (z.B. 1h, 3x, 200ml)...",style:"min-height:38px;font-size:13px;margin-top:4px;"});
-      const btnDel = h("button",{class:"btn secondary",type:"button",style:"min-height:44px;padding:4px 10px;color:#c25d6a;flex-shrink:0;",onclick:()=>{
-        if(selList.children.length>1){wrapper.remove();}else{sel.value="";txtDauer.value="";}
-      }},["x"]);
+    function addRow(preVal, preDauer) {
+      const sel = makeSelectForDay(day, preVal||"");
+      const txtDauer = h("input",{type:"text",class:"input",
+        placeholder:"Dauer / Haeufigkeit (z.B. 1h, 3x, 200ml)...",
+        style:"min-height:38px;font-size:13px;margin-top:4px;",
+        value: preDauer||""});
+      txtDauer.addEventListener("input", saveDraft);
+      const btnDel = h("button",{class:"btn secondary",type:"button",
+        style:"min-height:44px;padding:4px 10px;color:#c25d6a;flex-shrink:0;",
+        onclick:()=>{
+          if(selList.children.length>1){wrapper.remove();}
+          else{sel.value="";txtDauer.value="";}
+          saveDraft();
+        }},["x"]);
       const topRow = h("div",{style:"display:flex;gap:6px;align-items:center;"},[sel,btnDel]);
       const wrapper = h("div",{style:"display:flex;flex-direction:column;gap:0;"},[topRow,txtDauer]);
       wrapper._sel=sel;
       wrapper._txtDauer=txtDauer;
       selList.appendChild(wrapper);
     }
-    addRow();
-    const btnAdd = h("button",{class:"btn secondary",type:"button",style:"min-height:36px;font-size:13px;padding:4px 10px;",onclick:()=>addRow()},["+  Eintrag"]);
+    if(savedRows&&savedRows.length){
+      savedRows.forEach(r=>addRow(r.val,r.dauer));
+    } else {
+      addRow();
+    }
+    const btnAdd = h("button",{class:"btn secondary",type:"button",
+      style:"min-height:36px;font-size:13px;padding:4px 10px;",
+      onclick:()=>{addRow();saveDraft();}
+    },["+  Eintrag"]);
     const block = h("div",{style:"border:1px solid var(--line,#242838);border-radius:14px;padding:10px 12px;"},[
       h("div",{style:"font-size:13px;font-weight:700;color:var(--muted,#b9bcc6);margin-bottom:8px;"},[fmtDateDE(day)]),
       selList,
@@ -764,11 +803,13 @@ function renderSubWochenplan() {
     tagesContainer.innerHTML="";
     let days=[];
     try{days=getWeekDays(inpVon.value,inpBis.value);}catch{}
-    days.forEach(day=>tagesContainer.appendChild(makeDayBlock(day)));
+    const saved = loadDraft()?.tage||{};
+    days.forEach(day=>tagesContainer.appendChild(makeDayBlock(day, saved[day])));
+    saveDraft();
   }
   rebuildTage();
-  inpVon.addEventListener("change",rebuildTage);
-  inpBis.addEventListener("change",rebuildTage);
+  inpVon.addEventListener("change", ()=>{clearDraft();rebuildTage();});
+  inpBis.addEventListener("change",  ()=>{clearDraft();rebuildTage();});
 
   const btnVorschlag = h("button",{class:"btn",type:"button",style:"min-height:52px;margin-top:12px;font-size:16px;",onclick:async()=>{
     const eintraege=[];
@@ -788,11 +829,12 @@ function renderSubWochenplan() {
       const fbKey=await fbAddWochenplanEintrag(e).catch(()=>null);
       if(fbKey){state.wochenplan.push({...e,_fbKey:fbKey});ok++;}
     }
+    clearDraft();
     toast(ok+" Eintraege als Vorschlag gespeichert."); render();
-  }},["Als Vorschlag senden"]);
+  }},["📤 Als Vorschlag senden"]);
 
   const vorschlagCard = h("div",{class:"card"},[
-    h("div",{style:"font-weight:700;font-size:15px;margin-bottom:10px;"},["Neuen Vorschlag erstellen"]),
+    h("div",{style:"font-weight:700;font-size:15px;margin-bottom:10px;"},["📅 Neuen Vorschlag erstellen"]),
     h("div",{class:"small",style:"margin-bottom:8px;"},["Zeitraum:"]),
     h("div",{class:"row"},[inpVon,inpBis]),
     tagesContainer,
