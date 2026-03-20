@@ -17,6 +17,17 @@ async function fbDeleteCustomWish(fbKey) { return await fbDelete(`custom_wishes/
 async function fbGetPisslog() { const data=await fbGet("konditionierung_log"); if(!data) return []; return Object.entries(data).map(([k,v])=>({...v,_fbKey:k})).sort((a,b)=>new Date(b.ts)-new Date(a.ts)); }
 async function fbAddPisslog(entry) { return await fbPush("konditionierung_log",entry); }
 
+// ── Wünsche (Marlo) ──
+async function fbGetWuensche() { const data=await fbGet("wuensche"); if(!data) return []; return Object.entries(data).map(([k,v])=>({...v,_fbKey:k})); }
+async function fbAddWunsch(titel) { return await fbPush("wuensche",{titel,createdAt:nowISO()}); }
+async function fbDeleteWunsch(fbKey) { return await fbDelete(`wuensche/${fbKey}`); }
+
+// ── Wochenplan ──
+async function fbGetWochenplan() { const data=await fbGet("wochenplan"); if(!data) return []; return Object.entries(data).map(([k,v])=>({...v,_fbKey:k})); }
+async function fbAddWochenplanEintrag(entry) { return await fbPush("wochenplan",entry); }
+async function fbPatchWochenplanEintrag(fbKey,patch) { return await fbPatch(`wochenplan/${fbKey}`,patch); }
+async function fbDeleteWochenplanEintrag(fbKey) { return await fbDelete(`wochenplan/${fbKey}`); }
+
 const STORAGE = { settings:"gt_settings_v1",tasks:"gt_tasks_v1",goals:"gt_goals_v1",steps:"gt_goal_steps_v1",log:"gt_log_v1",schedule:"gt_schedule_v1",goalOverrides:"gt_goal_overrides_v1" };
 const DEFAULT_SETTINGS = { dayMode:"normal",minGapGoalsMin:90,maxUnitsPerBundle:5,ntfyGoalsTopic:"",ntfyTasksTopic:"",ntfyToken:"",tickSeconds:20 };
 const $ = id => document.getElementById(id);
@@ -54,7 +65,7 @@ const state = {
   tasksData: loadJSON(STORAGE.tasks,[]), goalsData: loadJSON(STORAGE.goals,[]),
   goalsStepsData: loadJSON(STORAGE.steps,[]), goalOverrides: loadJSON(STORAGE.goalOverrides,{}),
   route: "#/start", filter: "all", subFilter: "all",
-  anjaTasks: [], cuckold: {gefuehl:null,wunsch:null}, customWishes: [], pisslog: [],
+  anjaTasks: [], cuckold: {gefuehl:null,wunsch:null}, customWishes: [], pisslog: [], wuensche: [], wochenplan: [],
 };
 
 function persistSettings() { saveJSON(STORAGE.settings,state.settings); }
@@ -645,6 +656,228 @@ function renderDomLog() {
 // ════════════════════════════════════════════════
 // ── NAV & RENDER ──
 // ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// ── WOCHENPLAN ──
+// ════════════════════════════════════════════════
+
+function getWeekDays(fromISO, toISO) {
+  const days = [];
+  const cur = new Date(fromISO); cur.setHours(0,0,0,0);
+  const end = new Date(toISO);   end.setHours(23,59,59,999);
+  while (cur <= end) { days.push(cur.toISOString().slice(0,10)); cur.setDate(cur.getDate()+1); }
+  return days;
+}
+
+function fmtDateDE(iso) {
+  const d = new Date(iso+"T00:00:00");
+  return d.toLocaleDateString("de-DE",{weekday:"short",day:"2-digit",month:"2-digit"});
+}
+
+function nextMondayISO() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  const diff = (8 - d.getDay()) % 7 || 7;
+  d.setDate(d.getDate()+diff);
+  return d.toISOString().slice(0,10);
+}
+function nextSundayISO(mondayISO) {
+  const d = new Date(mondayISO+"T00:00:00"); d.setDate(d.getDate()+6);
+  return d.toISOString().slice(0,10);
+}
+
+function renderSubWochenplan() {
+  const wp = state.wochenplan || [];
+  const wuensche = state.wuensche || [];
+
+  // ── Wünsche verwalten ──
+  const wunschList = wuensche.map(w => h("div",{style:"display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line,#242838);"},[
+    h("div",{style:"flex:1;font-size:14px;"},[w.titel]),
+    h("button",{class:"btn secondary",type:"button",style:"min-height:32px;padding:4px 10px;font-size:12px;color:#c25d6a;",onclick:async()=>{
+      await fbDeleteWunsch(w._fbKey);
+      state.wuensche=state.wuensche.filter(x=>x._fbKey!==w._fbKey);
+      toast("Wunsch gelöscht."); render();
+    }},["🗑"]),
+  ]));
+  const txtWunsch = h("input",{type:"text",class:"input",placeholder:"Neuen Wunsch eingeben...",style:"min-height:44px;"});
+  const btnWunschAdd = h("button",{class:"btn secondary",type:"button",onclick:async()=>{
+    const val = txtWunsch.value.trim(); if(!val){toast("Bitte Wunsch eingeben.");return;}
+    const fbKey = await fbAddWunsch(val);
+    state.wuensche.push({titel:val,_fbKey:fbKey,createdAt:nowISO()});
+    toast("Wunsch gespeichert."); render();
+  }},["+ Hinzufügen"]);
+
+  const wunschCard = h("div",{class:"card"},[
+    h("div",{style:"font-weight:700;font-size:15px;margin-bottom:10px;"},["💭 Meine Wünsche"]),
+    h("div",{class:"small",style:"margin-bottom:10px;"},["Wünsche die du in den Wochenplan einplanen kannst."]),
+    wuensche.length ? h("div",{style:"margin-bottom:12px;"},wunschList) : h("div",{class:"small",style:"margin-bottom:10px;"},["Noch keine Wünsche gespeichert."]),
+    h("div",{class:"row"},[txtWunsch, btnWunschAdd]),
+  ]);
+
+  // ── Neuer Vorschlag ──
+  const monday = nextMondayISO();
+  const sunday = nextSundayISO(monday);
+  const inpVon = h("input",{type:"date",class:"input",value:monday});
+  const inpBis = h("input",{type:"date",class:"input",value:sunday});
+
+  // Dynamische Tageszeilen
+  const tagesContainer = h("div",{style:"display:flex;flex-direction:column;gap:8px;margin-top:12px;"});
+  let currentDays = [];
+
+  function rebuildTage() {
+    tagesContainer.innerHTML = "";
+    try { currentDays = getWeekDays(inpVon.value, inpBis.value); } catch { currentDays=[]; }
+    currentDays.forEach(day => {
+      const sel = document.createElement("select"); sel.className="select"; sel.style.flex="1";
+      const optEmpty = document.createElement("option"); optEmpty.value=""; optEmpty.textContent="-- Eintrag wählen --"; sel.appendChild(optEmpty);
+      // Wünsche
+      const grpW = document.createElement("optgroup"); grpW.label="💭 Meine Wünsche";
+      wuensche.forEach(w=>{const o=document.createElement("option");o.value="w:"+w.titel;o.textContent=w.titel;grpW.appendChild(o);});
+      sel.appendChild(grpW);
+      // Anja-Aufgaben mit Datum an diesem Tag
+      const anjaDayTasks = (state.anjaTasks||[]).filter(t=>t.dueAt&&t.dueAt.slice(0,10)===day);
+      if(anjaDayTasks.length){
+        const grpA=document.createElement("optgroup"); grpA.label="👑 Anjas Aufgaben";
+        anjaDayTasks.forEach(t=>{const o=document.createElement("option");o.value="a:"+t.id;o.textContent=t.title||"Aufgabe";grpA.appendChild(o);});
+        sel.appendChild(grpA);
+      }
+      const row = h("div",{style:"display:flex;align-items:center;gap:8px;"},[
+        h("div",{style:"min-width:90px;font-size:13px;color:var(--muted,#b9bcc6);"},[fmtDateDE(day)]),
+        sel,
+      ]);
+      row.dataset.day = day;
+      row._sel = sel;
+      tagesContainer.appendChild(row);
+    });
+  }
+  rebuildTage();
+  inpVon.addEventListener("change", rebuildTage);
+  inpBis.addEventListener("change", rebuildTage);
+
+  const btnVorschlag = h("button",{class:"btn",type:"button",style:"min-height:48px;margin-top:12px;",onclick:async()=>{
+    const eintraege = [];
+    Array.from(tagesContainer.children).forEach(row=>{
+      const day=row.dataset.day, val=row._sel?.value;
+      if(!day||!val) return;
+      const [typ,...rest]=val.split(":");
+      const titel=rest.join(":");
+      if(titel) eintraege.push({datum:day,typ,titel,status:"vorschlag",erstellt_von:"sub",createdAt:nowISO()});
+    });
+    if(!eintraege.length){toast("Bitte mindestens einen Eintrag wählen.");return;}
+    let ok=0;
+    for(const e of eintraege){
+      const fbKey=await fbAddWochenplanEintrag(e).catch(()=>null);
+      if(fbKey){state.wochenplan.push({...e,_fbKey:fbKey});ok++;}
+    }
+    toast(`${ok} Einträge als Vorschlag gespeichert.`); render();
+  }},["📤 Als Vorschlag senden"]);
+
+  const vorschlagCard = h("div",{class:"card"},[
+    h("div",{style:"font-weight:700;font-size:15px;margin-bottom:10px;"},["📅 Neuen Vorschlag erstellen"]),
+    h("div",{class:"small",style:"margin-bottom:8px;"},["Zeitraum:"]),
+    h("div",{class:"row"},[inpVon, inpBis]),
+    tagesContainer,
+    btnVorschlag,
+  ]);
+
+  // ── Aktuelle Woche anzeigen ──
+  const heute = todayKey();
+  const bestätigt = wp.filter(e=>e.status==="bestätigt").sort((a,b)=>a.datum.localeCompare(b.datum));
+  const abgelehnt = wp.filter(e=>e.status==="abgelehnt").sort((a,b)=>a.datum.localeCompare(b.datum));
+  const offen    = wp.filter(e=>e.status==="vorschlag").sort((a,b)=>a.datum.localeCompare(b.datum));
+
+  function wpEintragEl(e, showStatus=true) {
+    const isPast = e.datum < heute;
+    const badge = e.status==="bestätigt"?"✓":e.status==="abgelehnt"?"✗":"⏳";
+    const col = e.status==="bestätigt"?"#7ecfa0":e.status==="abgelehnt"?"#c25d6a":"#b9bcc6";
+    return h("div",{class:"item",style:isPast?"opacity:0.5;":""},[
+      h("div",{class:"badge task",style:`font-size:16px;color:${col};background:transparent;`},[badge]),
+      h("div",{class:"item-main"},[
+        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel]),
+        e.kommentar?h("div",{class:"small",style:"margin-top:4px;color:#c25d6a;"},[`Anja: ${e.kommentar}`]):null,
+      ].filter(Boolean)),
+    ]);
+  }
+
+  const planCard = h("div",{class:"card"},[
+    h("div",{style:"font-weight:700;font-size:15px;margin-bottom:10px;"},["📋 Freigegebene Woche"]),
+    bestätigt.length ? h("div",{class:"list"},bestätigt.map(e=>wpEintragEl(e))) : h("div",{class:"small"},["Noch nichts bestätigt."]),
+    offen.length?h("div",{style:"margin-top:12px;"},[h("div",{class:"small",style:"margin-bottom:6px;font-weight:700;"},["⏳ Wartet auf Anjas Bestätigung:"]),h("div",{class:"list"},offen.map(e=>wpEintragEl(e)))]):null,
+    abgelehnt.length?h("div",{style:"margin-top:12px;"},[h("div",{class:"small",style:"margin-bottom:6px;font-weight:700;color:#c25d6a;"},["✗ Abgelehnt:"]),h("div",{class:"list"},abgelehnt.map(e=>wpEintragEl(e)))]):null,
+  ].filter(Boolean));
+
+  return h("div",{style:"display:flex;flex-direction:column;gap:12px;"},[planCard, vorschlagCard, wunschCard]);
+}
+
+function renderDomWochenplan() {
+  const wp = state.wochenplan || [];
+  const vorschlaege = wp.filter(e=>e.status==="vorschlag").sort((a,b)=>a.datum.localeCompare(b.datum));
+  const bestätigt   = wp.filter(e=>e.status==="bestätigt").sort((a,b)=>a.datum.localeCompare(b.datum));
+
+  function buildVorschlagCard(e) {
+    const kommentarInput = h("input",{type:"text",class:"input",placeholder:"Kommentar (optional)...",style:"min-height:40px;font-size:14px;display:none;"});
+    const btnOk = h("button",{class:"btn",type:"button",style:"min-height:44px;flex:1;",onclick:async()=>{
+      await fbPatchWochenplanEintrag(e._fbKey,{status:"bestätigt",updatedAt:nowISO()});
+      e.status="bestätigt"; toast("Bestätigt."); render();
+    }},["✓ Bestätigen"]);
+    const btnNein = h("button",{class:"btn secondary",type:"button",style:"min-height:44px;",onclick:()=>{
+      const hidden=kommentarInput.style.display==="none";
+      kommentarInput.style.display=hidden?"block":"none";
+      btnSendAbgelehnt.style.display=hidden?"block":"none";
+    }},["✗ Ablehnen"]);
+    const btnSendAbgelehnt = h("button",{class:"btn secondary",type:"button",style:"min-height:40px;color:#c25d6a;border-color:rgba(194,93,106,.4);display:none;",onclick:async()=>{
+      const kommentar=kommentarInput.value.trim();
+      await fbPatchWochenplanEintrag(e._fbKey,{status:"abgelehnt",kommentar,updatedAt:nowISO()});
+      e.status="abgelehnt"; e.kommentar=kommentar; toast("Abgelehnt."); render();
+    }},["Absenden"]);
+    const btnDel = h("button",{class:"btn secondary",type:"button",style:"min-height:44px;color:#c25d6a;",onclick:async()=>{
+      await fbDeleteWochenplanEintrag(e._fbKey);
+      state.wochenplan=state.wochenplan.filter(x=>x._fbKey!==e._fbKey); toast("Gelöscht."); render();
+    }},["🗑"]);
+
+    return h("div",{class:"item"},[
+      h("div",{class:"badge task",style:"font-size:18px;background:transparent;"},["⏳"]),
+      h("div",{class:"item-main"},[
+        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel]),
+        h("div",{class:"small"},[e.typ==="w"?"💭 Wunsch":"👑 Aufgabe"]),
+        h("div",{class:"row",style:"margin-top:10px;gap:8px;flex-wrap:wrap;"},[btnOk,btnNein,btnDel]),
+        kommentarInput,
+        btnSendAbgelehnt,
+      ]),
+    ]);
+  }
+
+  // Zeige Abschick-Button wenn Kommentarfeld sichtbar
+  // (einfacher: immer anzeigen wenn Ablehnen geklickt)
+
+  const heute = todayKey();
+  function buildBestätigtEl(e) {
+    const isPast = e.datum < heute;
+    return h("div",{class:"item",style:isPast?"opacity:0.55;":""},[
+      h("div",{class:"badge task",style:"color:#7ecfa0;background:transparent;font-size:18px;"},["✓"]),
+      h("div",{class:"item-main"},[
+        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel]),
+        h("div",{class:"small"},[e.typ==="w"?"💭 Wunsch":"👑 Aufgabe"]),
+      ]),
+    ]);
+  }
+
+  const refreshBtn=h("button",{class:"btn secondary",type:"button",style:"min-height:36px;",onclick:async()=>{
+    toast("Lade..."); state.wochenplan=await fbGetWochenplan().catch(()=>[]); render(); toast("Aktualisiert.");
+  }},["🔄"]);
+
+  return h("div",{style:"display:flex;flex-direction:column;gap:12px;"},[
+    h("div",{class:"card"},[
+      sectionTitle("📥","Vorschläge",refreshBtn),
+      vorschlaege.length
+        ? h("div",{class:"list"},vorschlaege.map(buildVorschlagCard))
+        : h("div",{class:"small"},["Keine offenen Vorschläge."]),
+    ]),
+    bestätigt.length ? h("div",{class:"card"},[
+      sectionTitle("✓","Freigegeben",null),
+      h("div",{class:"list"},bestätigt.map(buildBestätigtEl)),
+    ]) : null,
+  ].filter(Boolean));
+}
+
 function updateNav() {
   const nav=document.getElementById("bottomnav"); if(!nav) return;
   nav.innerHTML="";
@@ -660,6 +893,7 @@ function updateNav() {
       {label:"Sub",route:"#/sub/home"},
       {label:"Ziele",route:"#/sub/goals"},
       {label:"Aufgaben",route:"#/sub/tasks"},
+      {label:"Wochenplan",route:"#/sub/wochenplan"},
       {label:"Kondit.",route:"#/sub/kond"},
       {label:"Cuckold",route:"#/sub/cuckold"},
       {label:"Log",route:"#/sub/log"},
@@ -677,6 +911,7 @@ function updateNav() {
       {label:"Start",route:"#/start"},
       {label:"Übersicht",route:"#/dom/start"},
       {label:"Aufgaben",route:"#/dom/aufgaben"},
+      {label:"Wochenplan",route:"#/dom/wochenplan"},
       {label:"Rückmeldungen",route:"#/dom/rueckmeldungen"},
       {label:"Log",route:"#/dom/log"},
     ];
@@ -700,12 +935,14 @@ function render() {
   else if(r==="#/sub/home")            view.appendChild(renderSubHome());
   else if(r==="#/sub/goals")           view.appendChild(renderSubGoals());
   else if(r==="#/sub/tasks")           view.appendChild(renderSubTasks());
+  else if(r==="#/sub/wochenplan")      view.appendChild(renderSubWochenplan());
   else if(r==="#/sub/kond")            view.appendChild(renderPisslog());
   else if(r==="#/sub/cuckold")         view.appendChild(renderCuckold());
   else if(r==="#/sub/log")             view.appendChild(renderSubLog());
   else if(r==="#/sub/settings")        view.appendChild(renderSubSettings());
   else if(r==="#/dom/start")           view.appendChild(renderDomStart());
   else if(r==="#/dom/aufgaben")        view.appendChild(renderDomAufgaben());
+  else if(r==="#/dom/wochenplan")      view.appendChild(renderDomWochenplan());
   else if(r==="#/dom/rueckmeldungen")  view.appendChild(renderDomRueckmeldungen());
   else if(r==="#/dom/log")             view.appendChild(renderDomLog());
   else                                 view.appendChild(renderStart());
@@ -728,14 +965,17 @@ async function init() {
   const btnSync=$("btnSync"); if(btnSync) btnSync.addEventListener("click",async()=>{try{await loadAllCSV();toast("CSV geladen.");regenIfNeeded(true);render();}catch(e){toast("CSV Fehler.");}});
   window.addEventListener("hashchange",onRoute);
   setupBridge(); await registerServiceWorker();
-  const [,,cuckData,customWishData,pisslogData]=await Promise.all([
+  const [,,cuckData,customWishData,pisslogData,wuenscheData,wochenplanData]=await Promise.all([
     loadAllCSV().catch(console.warn), loadAnjaTasks(),
     fbGetCuckold().catch(()=>({})), fbGetCustomWishes().catch(()=>[]),
-    fbGetPisslog().catch(()=>[]),
+    fbGetPisslog().catch(()=>[]), fbGetWuensche().catch(()=>[]),
+    fbGetWochenplan().catch(()=>[]),
   ]);
   state.cuckold=cuckData||{gefuehl:null,wunsch:null};
   state.customWishes=customWishData||[];
   state.pisslog=pisslogData||[];
+  state.wuensche=wuenscheData||[];
+  state.wochenplan=wochenplanData||[];
   regenIfNeeded(true);
   setInterval(()=>maybeDispatchPushes(),state.settings.tickSeconds*1000);
   setInterval(async()=>{
@@ -743,9 +983,10 @@ async function init() {
     const cd=await fbGetCuckold().catch(()=>null); if(cd) state.cuckold=cd;
     const cw=await fbGetCustomWishes().catch(()=>null); if(cw) state.customWishes=cw;
     const pl=await fbGetPisslog().catch(()=>null); if(pl) state.pisslog=pl;
+    const wu=await fbGetWuensche().catch(()=>null); if(wu) state.wuensche=wu;
+    const wp=await fbGetWochenplan().catch(()=>null); if(wp) state.wochenplan=wp;
     const r=state.route;
-    // Keine auto-render auf Seiten mit aktiver Eingabe
-    const noRender=["#/dom/aufgaben","#/sub/kond","#/sub/cuckold","#/sub/settings"];
+    const noRender=["#/dom/aufgaben","#/sub/kond","#/sub/cuckold","#/sub/settings","#/sub/wochenplan"];
     if(noRender.includes(r)) return;
     if(r.startsWith("#/sub/")||r.startsWith("#/dom/")) render();
   },30000);
