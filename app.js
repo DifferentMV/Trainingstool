@@ -1,4 +1,4 @@
-/* Glam Trainer — V3.0 (Full Version with Wochenplan Status & Logging) */
+/* Glam Trainer — V3.0 (VOLLSTÄNDIG - TEIL 1) */
 
 const FIREBASE_URL = "https://ds-trainingstool-default-rtdb.europe-west1.firebasedatabase.app";
 
@@ -58,6 +58,7 @@ function saveJSON(key,value) { localStorage.setItem(key,JSON.stringify(value)); 
 function startOfWeek(d=new Date()) { const x=new Date(d),day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x; }
 function inThisWeek(iso) { const d=new Date(iso),s=startOfWeek(),e=new Date(s); e.setDate(e.getDate()+7); return d>=s&&d<e; }
 async function fetchText(url) { const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error(`${url} (${r.status})`); return await r.text(); }
+/* TEIL 2 von 3 */
 
 function parseCSV(text) {
   const cleaned=String(text||"").replace(/^\uFEFF/,"");
@@ -135,6 +136,7 @@ function normalizeGoalRow(raw) {
     zeit_von:normStr(getField(raw,["zeit_von","von"],"14:00")), zeit_bis:normStr(getField(raw,["zeit_bis","bis"],"20:00")),
     feste_zeit:normStr(getField(raw,["feste_zeit","uhrzeit","fix"],"09:00")) };
 }
+
 function getGoalsNormalized() { return (state.goalsData||[]).map(normalizeGoalRow).filter(g=>g.ziel_id); }
 function setGoalOverride(goalId,patch) { const gid=normId(goalId); state.goalOverrides[gid]={...(state.goalOverrides[gid]||{}),...patch}; persistOverrides(); }
 function countGoalDone(goalId,period) {
@@ -142,6 +144,7 @@ function countGoalDone(goalId,period) {
   if(period==="TAG"){const t=todayKey();return log.filter(e=>e.typ==="ziel"&&normId(e.ziel_id)===gid&&e.status==="erledigt"&&e.dayKey===t).length;}
   return log.filter(e=>e.typ==="ziel"&&normId(e.ziel_id)===gid&&e.status==="erledigt"&&inThisWeek(e.createdAt)).length;
 }
+
 function computeGoalQuota(goal) { const period=goal.zeitraum==="WOCHE"?"WOCHE":"TAG"; return {period,min:parseInt(goal.min||"0",10)||0,max:parseInt(goal.max||"0",10)||0,done:countGoalDone(goal.ziel_id,period)}; }
 function pickExerciseForGoal(goalId,stufe) {
   const gid=normId(goalId),lvl=parseInt(stufe||"1",10)||1;
@@ -152,6 +155,7 @@ function pickExerciseForGoal(goalId,stufe) {
 
 function pickRandomTimeBetween(a,b) { const from=parseTimeToDateToday(a),to=parseTimeToDateToday(b); if(!from||!to||to<=from) return null; return new Date(from.getTime()+Math.random()*(to.getTime()-from.getTime())); }
 function ensureMinGap(dates,candidate,minMin) { const gap=minMin*60*1000; for(const d of dates){if(Math.abs(d.getTime()-candidate.getTime())<gap)return false;} return true; }
+
 function generateGoalUnitsForToday(activeGoals) {
   const mode=state.settings.dayMode; if(mode==="aussetzen"||!activeGoals.length) return [];
   const units=[];
@@ -172,6 +176,8 @@ function generateGoalUnitsForToday(activeGoals) {
   }
   units.sort((a,b)=>new Date(a.plannedAt)-new Date(b.plannedAt)); return units;
 }
+/* TEIL 3 von 3 */
+
 function regenIfNeeded(force=false) {
   const t=todayKey(),activeGoals=getGoalsNormalized().filter(g=>g.aktiv===true),activeIds=new Set(activeGoals.map(g=>normId(g.ziel_id)));
   let schedule=getSchedule();
@@ -300,12 +306,12 @@ function renderGoalAction(u) {
     ]),
     h("div",{class:"modal-actions"},[
       h("button",{class:"btn",onclick:()=>close()},["Später"]),
-      h("button",{class:"btn primary",onclick:()=>{
+      h("button",{class:"btn primary",onclick:async()=>{
         u.status="erledigt"; u.doneAt=nowISO();
         const schedule=getSchedule(); const idx=schedule.units.findIndex(x=>x.id===u.id);
         if(idx!==-1) schedule.units[idx]=u; setSchedule(schedule);
         addLogEntry({id:`log-ziel-${Date.now()}`,typ:"ziel",dayKey:todayKey(),createdAt:nowISO(),ziel_id:u.ziel_id,ziel_name:u.ziel_name,stufe:u.stufe,uebung:ex?ex.titel:"",status:"erledigt"});
-        fbAddPisslog({ts:nowISO(),txt:`Ziel erledigt: ${u.ziel_name} (${ex?ex.titel:"Keine Übung"})`,type:"Ziel"});
+        await fbAddPisslog({ts:nowISO(),txt:`Ziel erledigt: ${u.ziel_name} (${ex?ex.titel:"Keine Übung"})`,type:"Ziel"});
         close(); render();
       }},["Erledigt"])
     ])
