@@ -211,7 +211,7 @@ const FIXED_TOPIC="my-secret-task-topic-4711";
 function restorePushSettings(){const s=getPushSettings();$("pushTopic").value=FIXED_TOPIC;if(s.token)$("pushToken").value=s.token;$("pushOnBuild").checked=!!s.auto;}
 
 async function sendNtfyPush(message,title){
-  const topic=$("pushTopic").value.trim()||FIXED_TOPIC;
+  const topic=FIXED_TOPIC||$("pushTopic").value.trim();
   const token=$("pushToken").value.trim();
   const headers={"Content-Type":"text/plain; charset=utf-8","Title":title||"Neue Aufgabe","Priority":"default","Tags":"bell"};
   if(token)headers["Authorization"]=`Bearer ${token}`;
@@ -333,9 +333,8 @@ async function buildResult(){
   $("stepResult").style.display="block";
   const taskObj={id:`anja-${Date.now()}-${Math.floor(Math.random()*10000)}`,title:lines.join(" / "),note,dueAt,status:"offen",createdAt:new Date().toISOString()};
   await saveAnjaTask(taskObj);
-  const _topic=$("pushTopic").value.trim()||FIXED_TOPIC;
-  if(_topic){try{const out=["Neue Aufgabe","",...lines];if(kv.length){out.push("");kv.forEach(([k,v])=>out.push(k+": "+v));}await sendNtfyPush(out.join("\n"),"Neue Aufgabe");showToast("Aufgabe erstellt & Push gesendet.");}catch(e){setError(String(e.message||e));showToast("Aufgabe erstellt (Push fehlgeschlagen).");}}
-  else{showToast("Aufgabe erstellt.");}
+  // Push immer senden - Topic ist fest im Code
+  try{const out=["Neue Aufgabe","",...lines];if(kv.length){out.push("");kv.forEach(([k,v])=>out.push(k+": "+v));}await sendNtfyPush(out.join("\n"),"Neue Aufgabe");showToast("Aufgabe erstellt & Push gesendet.");}catch(e){console.warn(e);showToast("Aufgabe erstellt (Push fehlgeschlagen).");}
 }
 
 function wire(){
