@@ -848,15 +848,37 @@ function renderSubWochenplan() {
   const off  = wp.filter(e=>e.status==="vorschlag").sort((a,b)=>a.datum.localeCompare(b.datum));
 
   function wpEl(e) {
-    const isPast=e.datum<heute;
-    const badge=e.status==="best\u00e4tigt"?"check":e.status==="abgelehnt"?"x":"wait";
-    const col=e.status==="best\u00e4tigt"?"#7ecfa0":e.status==="abgelehnt"?"#c25d6a":"#b9bcc6";
-    const sym=e.status==="best\u00e4tigt"?"\u2713":e.status==="abgelehnt"?"\u2717":"\u23f3";
-    return h("div",{class:"item",style:isPast?"opacity:0.5;":""},[
+    const isPast  = e.datum < heute;
+    const isToday = e.datum === heute;
+    const isDone  = e.status === "erledigt" || e.status === "uebersprungen";
+    const col = e.status==="bestätigt"?"#7ecfa0":e.status==="abgelehnt"?"#c25d6a":e.status==="erledigt"?"#7ecfa0":e.status==="uebersprungen"?"#b9bcc6":"#b9bcc6";
+    const sym = e.status==="bestätigt"?"✓":e.status==="abgelehnt"?"✗":e.status==="erledigt"?"✓":e.status==="uebersprungen"?"↷":"⏳";
+
+    const btnErledigt = h("button",{class:"btn",type:"button",style:"min-height:40px;flex:1;font-size:13px;",onclick:async()=>{
+      await fbPatchWochenplanEintrag(e._fbKey,{status:"erledigt",updatedAt:nowISO()});
+      e.status="erledigt"; toast("Erledigt."); render();
+    }},["✓ Erledigt"]);
+    const btnUebersprungen = h("button",{class:"btn secondary",type:"button",style:"min-height:40px;flex:1;font-size:13px;",onclick:async()=>{
+      await fbPatchWochenplanEintrag(e._fbKey,{status:"uebersprungen",updatedAt:nowISO()});
+      e.status="uebersprungen"; toast("Übersprungen."); render();
+    }},["↷ Übersprungen"]);
+
+    const aktionRow = isToday && !isDone
+      ? h("div",{class:"row",style:"margin-top:8px;gap:8px;"},[btnErledigt, btnUebersprungen])
+      : null;
+
+    const statusLabel = isDone
+      ? h("div",{class:"small",style:"margin-top:4px;color:"+(e.status==="erledigt"?"#7ecfa0":"#b9bcc6")+";"},
+          [e.status==="erledigt"?"✓ Erledigt":"↷ Übersprungen"])
+      : null;
+
+    return h("div",{class:"item",style:isPast&&!isDone?"opacity:0.5;":""},[
       h("div",{class:"badge task",style:"font-size:16px;color:"+col+";background:transparent;"},[sym]),
       h("div",{class:"item-main"},[
-        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" - "+e.titel]),
+        h("div",{class:"item-title"},[fmtDateDE(e.datum)+" – "+e.titel+(e.dauer?" · "+e.dauer:"")]),
         e.kommentar?h("div",{class:"small",style:"margin-top:4px;color:#c25d6a;"},["Anja: "+e.kommentar]):null,
+        statusLabel,
+        aktionRow,
       ].filter(Boolean)),
     ]);
   }
