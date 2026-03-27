@@ -33,7 +33,7 @@ const DEFAULT_SETTINGS = { dayMode:"normal",minGapGoalsMin:90,maxUnitsPerBundle:
 const $ = id => document.getElementById(id);
 
 function nowISO() { return new Date().toISOString(); }
-function todayKey(d=new Date()) { const x=new Date(d); x.setHours(0,0,0,0); return x.toISOString().slice(0,10); }
+function todayKey(d=new Date()) { return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function pad2(n) { return String(n).padStart(2,"0"); }
 function fmtTime(d) { return pad2(d.getHours())+":"+pad2(d.getMinutes()); }
 function fmtDateTimeLocal(iso) { if(!iso) return ""; return new Date(iso).toLocaleString("de-DE"); }
