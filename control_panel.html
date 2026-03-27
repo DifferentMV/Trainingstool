@@ -207,10 +207,11 @@ function showToast(msg){const t=$("toast");t.textContent=msg||"OK";t.style.displ
 
 function getPushSettings(){return JSON.parse(localStorage.getItem(PUSH_KEY)||"{}");}
 function savePushSettings(){localStorage.setItem(PUSH_KEY,JSON.stringify({topic:$("pushTopic").value.trim(),token:$("pushToken").value.trim(),auto:$("pushOnBuild").checked}));}
-function restorePushSettings(){const s=getPushSettings();$("pushTopic").value=s.topic||"my-secret-task-topic-4711";if(s.token)$("pushToken").value=s.token;$("pushOnBuild").checked=!!s.auto;}
+const FIXED_TOPIC="my-secret-task-topic-4711";
+function restorePushSettings(){const s=getPushSettings();$("pushTopic").value=FIXED_TOPIC;if(s.token)$("pushToken").value=s.token;$("pushOnBuild").checked=!!s.auto;}
 
 async function sendNtfyPush(message,title){
-  const topic=$("pushTopic").value.trim(); if(!topic){setError("Bitte ntfy Topic eintragen.");return false;}
+  const topic=$("pushTopic").value.trim()||FIXED_TOPIC;
   const token=$("pushToken").value.trim();
   const headers={"Content-Type":"text/plain; charset=utf-8","Title":title||"Neue Aufgabe","Priority":"default","Tags":"bell"};
   if(token)headers["Authorization"]=`Bearer ${token}`;
@@ -332,7 +333,7 @@ async function buildResult(){
   $("stepResult").style.display="block";
   const taskObj={id:`anja-${Date.now()}-${Math.floor(Math.random()*10000)}`,title:lines.join(" / "),note,dueAt,status:"offen",createdAt:new Date().toISOString()};
   await saveAnjaTask(taskObj);
-  const _topic=$("pushTopic").value.trim();
+  const _topic=$("pushTopic").value.trim()||FIXED_TOPIC;
   if(_topic){try{const out=["Neue Aufgabe","",...lines];if(kv.length){out.push("");kv.forEach(([k,v])=>out.push(k+": "+v));}await sendNtfyPush(out.join("\n"),"Neue Aufgabe");showToast("Aufgabe erstellt & Push gesendet.");}catch(e){setError(String(e.message||e));showToast("Aufgabe erstellt (Push fehlgeschlagen).");}}
   else{showToast("Aufgabe erstellt.");}
 }
