@@ -179,11 +179,14 @@ function regenIfNeeded(force=false) {
 }
 
 // ── Push ──
+const FIXED_NTFY_TOPIC = "my-secret-task-topic-4711";
+
 async function sendNtfy(topic,token,message,title) {
-  if(!topic) return false;
+  const t = topic || FIXED_NTFY_TOPIC;
+  if(!t) return false;
   const headers={"Content-Type":"text/plain; charset=utf-8","Title":title||"Glam Trainer","Priority":"default","Tags":"bell"};
   if(token) headers["Authorization"]=`Bearer ${token}`;
-  const res=await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`,{method:"POST",headers,body:message});
+  const res=await fetch(`https://ntfy.sh/${encodeURIComponent(t)}`,{method:"POST",headers,body:message});
   if(!res.ok){const txt=await res.text();throw new Error(`Push fehlgeschlagen (${res.status}): ${txt.slice(0,140)}`);} return true;
 }
 async function maybeDispatchPushes() {
@@ -414,7 +417,7 @@ function renderSubTasks() {
   rubSel.onchange=()=>{rebuild();out.textContent="";delete out.dataset.payload;};
   taskSel.onchange=()=>{const items=getItems(rubSel.value),idx=parseInt(taskSel.value||"-1",10);if(idx>=0&&items[idx])setOut(items[idx]);};
   btnRandom.onclick=()=>{if(!rubSel.value){toast("Rubrik waehlen.");return;}const items=getItems(rubSel.value);if(!items.length){toast("Keine Aufgaben.");return;}setOut(items[Math.floor(Math.random()*items.length)]);toast("Zufallsaufgabe.");};
-  btnPush.onclick=async()=>{const p=out.dataset.payload?JSON.parse(out.dataset.payload):null;if(!p){toast("Erst Aufgabe waehlen.");return;}try{await sendNtfy(state.settings.ntfyTasksTopic,state.settings.ntfyToken,`Aufgabe\nRubrik: ${p.rubrik}\n\n${p.titel}`,"Aufgabe");toast("Push gesendet.");}catch(e){toast("Push fehlgeschlagen.");}};
+  btnPush.onclick=async()=>{const p=out.dataset.payload?JSON.parse(out.dataset.payload):null;if(!p){toast("Erst Aufgabe waehlen.");return;}try{await sendNtfy(state.settings.ntfyTasksTopic||FIXED_NTFY_TOPIC,state.settings.ntfyToken,`Aufgabe\nRubrik: ${p.rubrik}\n\n${p.titel}`,"Aufgabe");toast("Push gesendet.");}catch(e){toast("Push fehlgeschlagen.");}};
   return h("div",{style:"display:flex;flex-direction:column;gap:12px"},[renderAnjaInbox(),h("div",{class:"card"},[sectionTitle("🧩","Aufgaben (Katalog)",null),h("div",{class:"small"},["Optional. Keine Progression, keine Strafen."]),h("div",{class:"hr"},[]),rubSel,taskSel,h("div",{class:"row"},[btnRandom,btnPush]),out])]);
 }
 
