@@ -89,7 +89,7 @@
   <header>
     <div>
       <h1>Aufgaben erstellen</h1>
-      <div class="sub">Aufgabe · Kleidung · Kombination</div>
+      <div class="sub">Aufgabe · Kleidung · Kombination · Eigene</div>
     </div>
     <button class="ghost" id="btnReload" type="button">Neu laden</button>
   </header>
@@ -242,7 +242,7 @@ async function loadCSV(){
 
 function renderModes(){
   const g=$("modeGrid");g.innerHTML="";
-  [{k:"Aufgabe",h:"Handlung / Verhalten"},{k:"Kleidung",h:"Erscheinung / Symbolik"},{k:"Kombination",h:"Kleidung + Aufgabe"}].forEach(m=>{
+  [{k:"Aufgabe",h:"Handlung / Verhalten"},{k:"Kleidung",h:"Erscheinung / Symbolik"},{k:"Kombination",h:"Kleidung + Aufgabe"},{k:"Eigene",h:"Freitext-Aufgabe"}].forEach(m=>{
     const b=document.createElement("button");b.className="pill"+(mode===m.k?" active":"");b.type="button";
     b.innerHTML=`<div class="k">${m.k}</div><div class="h">${m.h}</div>`;b.onclick=()=>selectMode(m.k);g.appendChild(b);
   });
@@ -260,6 +260,16 @@ function resetAll(){
 
 function selectMode(m){
   mode=m;selection=[];bereich=null;currentType=(mode==="Kombination")?"Kleidung":mode;
+  if(mode==="Eigene"){
+    // Direkt zum Freitext – alle anderen Schritte ausblenden
+    ["stepBereich","stepItem","sep2","sep3"].forEach(id=>$(id).style.display="none");
+    $("stepParams").style.display="block";
+    $("stepResult").style.display="none";
+    $("inpCustom").focus();
+    $("dauerBlock").style.display="none";
+    $("orgBlock").style.display="none";
+    setError(null);renderModes();return;
+  }
   $("stepBereich").style.display="block";
   ["stepItem","stepParams","stepResult","sep2","sep3"].forEach(id=>$(id).style.display="none");
   setError(null);renderModes();renderBereiche();
@@ -307,6 +317,7 @@ async function buildResult(){
   setError(null);
   if(mode==="Kombination"&&currentType==="Kleidung"){currentType="Aufgabe";bereich=null;renderBereiche();["stepItem","stepParams","sep2","sep3"].forEach(id=>$(id).style.display="none");setError("Jetzt Aufgabe wählen. Kleidung bleibt gespeichert.");return;}
   if(mode==="Kombination"){const hasK=selection.some(s=>s.typ==="Kleidung"),hasA=selection.some(s=>s.typ==="Aufgabe");if(!hasK||!hasA){setError("Kombination braucht mindestens 1 Kleidung und 1 Aufgabe.");return;}}
+  if(mode==="Eigene"){const custom=$("inpCustom").value.trim();if(!custom){setError("Bitte eigene Aufgabe eingeben.");$("inpCustom").focus();return;}}
   const custom=$("inpCustom").value.trim();
   if(!custom&&selection.length===0){setError("Bitte Auswahl treffen oder eigene Aufgabe eingeben.");return;}
   const n=computeNeeds(),dauerVal=n.dauer?$("inpDauer").value.trim():"";
